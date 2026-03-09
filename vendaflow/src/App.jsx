@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import AgenteIAModule from "./AgenteIA.jsx";
+import DemoGuard, { DemoWatermark, DemoBanner, DemoPinModal, DemoConfigPanel, isDemoMode, useDemo } from "./DemoGuard.jsx";
+import { lsGet, lsSet } from "./db.js";
 
 // ── AUTH USERS DB (simulado — substituir por Supabase em produção) ─────────
 const USERS_DB_KEY = "vendaflow_users";
@@ -11,11 +13,11 @@ const defaultUsers = [
   { id:3, nome:"Ana",      email:"ana@vendaflow.com",      senha:"ana123",    perfil:"vendedor", ativo:true,  avatar:"A", cor:"linear-gradient(135deg,#10b981,#06b6d4)" },
 ];
 
-const getUsers  = () => { try { return JSON.parse(localStorage.getItem(USERS_DB_KEY)) || defaultUsers; } catch { return defaultUsers; } };
-const saveUsers = (u) => localStorage.setItem(USERS_DB_KEY, JSON.stringify(u));
-const getSession= () => { try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch { return null; } };
-const saveSession=(u) => localStorage.setItem(SESSION_KEY, JSON.stringify(u));
-const clearSession=()=> localStorage.removeItem(SESSION_KEY);
+const getUsers  = () => { const u = lsGet(USERS_DB_KEY, null); return u || defaultUsers; };
+const saveUsers = (u) => lsSet(USERS_DB_KEY, u);
+const getSession= () => lsGet(SESSION_KEY, null);
+const saveSession=(u) => lsSet(SESSION_KEY, u);
+const clearSession=()=> localStorage.removeItem(SESSION_KEY);  // keep raw remove for session
 
 // Inicializa users no localStorage se não existir
 if (!localStorage.getItem(USERS_DB_KEY)) saveUsers(defaultUsers);
@@ -849,6 +851,9 @@ export default function App() {
 
   if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
 
+  const demoModeActive = isDemoMode();
+  const demoPin = localStorage.getItem("vendaflow_demo_pin") || "1234";
+
   const novosLeads = leads.filter(l=>l.status==="novo").length;
   const isAdmin    = currentUser.perfil === "admin";
 
@@ -865,7 +870,32 @@ export default function App() {
       case "agenda":     return <Agenda atividades={atividades} setAtividades={setAtividades} />;
       case "financeiro": return <Financeiro financeiro={financeiro} setFinanceiro={setFinanceiro} />;
       case "ia":         return <AgenteIAModule setLeads={setLeads} />;
-      case "usuarios":   return isAdmin ? <GestaoUsuarios currentUser={currentUser} /> : null;
+      case "usuarios":   return isAdmin ? (
+        <div>
+          <GestaoUsuarios currentUser={currentUser} />
+          <div style={{ marginTop:20 }}>
+            <DemoConfigPanel currentUser={currentUser} />
+          </div>
+          <div style={{ marginTop:16, background:"#0d1117", border:"1px solid #1e293b", borderRadius:12, overflow:"hidden" }}>
+            <div style={{ padding:"12px 16px", borderBottom:"1px solid #1e293b" }}>
+              <span style={{ fontSize:14, fontWeight:700, color:"#f1f5f9" }}>🗄️ Banco de Dados</span>
+            </div>
+            <div style={{ padding:16 }}>
+              <div style={{ fontSize:12, color:"#475569", marginBottom:12, lineHeight:1.7 }}>
+                Usando <strong style={{color:"#60a5fa"}}>localStorage</strong> (dados no navegador).{" "}
+                Para produção real, configure o Supabase em <code style={{color:"#94a3b8",fontSize:11}}>src/db.js</code>.
+              </div>
+              <div style={{ background:"#111827", borderRadius:9, padding:"11px 14px", fontSize:12, color:"#64748b", lineHeight:1.8 }}>
+                1. Crie conta em <a href="https://supabase.com" target="_blank" style={{color:"#60a5fa"}}>supabase.com</a><br/>
+                2. Execute o SQL de <code style={{color:"#94a3b8"}}>SUPABASE_SCHEMA</code> (db.js) no SQL Editor<br/>
+                3. Preencha <code style={{color:"#94a3b8"}}>supabaseUrl</code> + <code style={{color:"#94a3b8"}}>supabaseKey</code> em db.js<br/>
+                4. Mude <code style={{color:"#94a3b8"}}>adapter: "supabase"</code><br/>
+                5. No console: <code style={{color:"#94a3b8"}}>dbMigrateToSupabase()</code>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null;
       default: return null;
     }
   };
@@ -987,7 +1017,7 @@ export default function App() {
 
   // ── DESKTOP ──
   return (
-    <>
+    <DemoGuard enabled={demoModeActive} pin={demoPin}>
       <style>{fontStyle}</style>
       <div style={{ display:"flex", height:"100%", overflow:"hidden", background:"#080c14" }}>
         {/* Sidebar */}
@@ -1040,5 +1070,6 @@ export default function App() {
         </div>
       </div>
     </>
+    </DemoGuard>
   );
 }

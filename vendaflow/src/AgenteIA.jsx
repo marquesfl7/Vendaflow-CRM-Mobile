@@ -281,25 +281,173 @@ const ScoreBadge = ({ score }) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ABA: CONVERSAS — MOBILE-FIRST
+// ABA: CONVERSAS — sub-componentes extraídos para FORA (fix: 1 char por vez)
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Lista de conversas — componente próprio, não recriado a cada render
+const ListaConversas = ({ convs, convAtiva, isMobile, novaConv, setNovaConv, novoNum, setNovoNum, novoNome, setNovoNome, abrirConversa, iniciarConversa }) => (
+  <div style={{ background:"#0d1117", border:"1px solid #1e293b", borderRadius:isMobile?12:"12px 0 0 12px", display:"flex", flexDirection:"column", overflow:"hidden", height: isMobile ? "calc(100vh - 240px)" : "100%" }}>
+    <div style={{ padding:"12px 14px", borderBottom:"1px solid #1e293b", display:"flex", gap:8, alignItems:"center" }}>
+      <span style={{ flex:1, fontSize:13, fontWeight:700, color:"#f1f5f9" }}>Conversas ({convs.length})</span>
+      <button style={S.btn("primary",true)} onClick={()=>setNovaConv(true)}>+ Nova</button>
+    </div>
+
+    {novaConv && (
+      <div style={{ padding:"12px 14px", background:"#111827", borderBottom:"1px solid #1e293b" }}>
+        <input
+          style={{...S.inp, marginBottom:8, fontSize:16, padding:"11px 13px"}}
+          placeholder="Número WhatsApp (5511...)"
+          value={novoNum}
+          onChange={e=>setNovoNum(e.target.value)}
+          inputMode="tel"
+          autoFocus
+        />
+        <input
+          style={{...S.inp, marginBottom:8, fontSize:16, padding:"11px 13px"}}
+          placeholder="Nome (opcional)"
+          value={novoNome}
+          onChange={e=>setNovoNome(e.target.value)}
+        />
+        <div style={{ display:"flex", gap:6 }}>
+          <button style={{...S.btn("secondary",true),flex:1}} onClick={()=>setNovaConv(false)}>Cancelar</button>
+          <button style={{...S.btn("primary",true),flex:1}} onClick={iniciarConversa}>Iniciar</button>
+        </div>
+      </div>
+    )}
+
+    <div style={{ flex:1, overflowY:"auto" }}>
+      {convs.length === 0 && (
+        <div style={{ padding:32, textAlign:"center", color:"#334155", fontSize:13 }}>
+          <div style={{ fontSize:36, marginBottom:10 }}>💬</div>
+          Nenhuma conversa ainda.<br/>Toque em "+ Nova" para iniciar.
+        </div>
+      )}
+      {convs.map(c=>(
+        <div key={c.id} onClick={()=>abrirConversa(c.id)}
+          style={{ padding:"13px 15px", borderBottom:"1px solid rgba(30,41,59,.5)", cursor:"pointer", background:convAtiva===c.id&&!isMobile?"rgba(59,130,246,.08)":"transparent", borderLeft:`3px solid ${convAtiva===c.id&&!isMobile?"#3b82f6":"transparent"}`, transition:"all .15s", minHeight:68, display:"flex", flexDirection:"column", justifyContent:"center" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+            <span style={{ fontSize:14, fontWeight:700, color:"#f1f5f9", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth: isMobile?200:140 }}>{c.nome}</span>
+            <div style={{ display:"flex", gap:4, flexShrink:0 }}>
+              {c.leadCriado && <span style={{ fontSize:9, fontWeight:700, padding:"2px 6px", borderRadius:10, background:"rgba(16,185,129,.15)", color:"#10b981" }}>LEAD</span>}
+              <ScoreBadge score={c.score} />
+            </div>
+          </div>
+          <div style={{ fontSize:12, color:"#475569", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginBottom:3 }}>{c.ultimaMensagem || "Sem mensagens"}</div>
+          <div style={{ display:"flex", justifyContent:"space-between" }}>
+            <span style={{ fontSize:11, color:"#334155" }}>{c.numero}</span>
+            <span style={{ fontSize:11, padding:"1px 7px", borderRadius:10, background:"rgba(59,130,246,.08)", color:CONV_COLORS[c.status]||"#475569", fontWeight:600 }}>{CONV_STATUS[c.status]||c.status}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+// Janela de chat — componente próprio, não recriado a cada render
+const JanelChat = ({ conv, isMobile, loading, inputMsg, setInputMsg, enviarManual, simularMsgEntrada, voltarLista, bottomRef }) => (
+  <div style={{ display:"flex", flexDirection:"column", background:"#080c14", border:"1px solid #1e293b", borderLeft:isMobile?"1px solid #1e293b":"none", borderRadius:isMobile?12:"0 12px 12px 0", overflow:"hidden", height: isMobile ? "calc(100vh - 180px)" : "100%" }}>
+
+    {/* Header */}
+    <div style={{ padding:"11px 14px", background:"#0d1117", borderBottom:"1px solid #1e293b", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+      {isMobile && (
+        <button onClick={voltarLista} style={{ background:"#1e293b", border:"none", color:"#94a3b8", width:36, height:36, borderRadius:9, cursor:"pointer", fontSize:20, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, fontWeight:700 }}>‹</button>
+      )}
+      <div style={{ width:36, height:36, borderRadius:"50%", background:"linear-gradient(135deg,#25d366,#128c7e)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>💬</div>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize:14, fontWeight:700, color:"#f1f5f9", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{conv.nome}</div>
+        <div style={{ fontSize:11, color:"#475569" }}>{conv.numero} · {conv.msgs.length} msgs</div>
+      </div>
+      <div style={{ display:"flex", gap:6, alignItems:"center", flexShrink:0 }}>
+        <ScoreBadge score={conv.score} />
+        {!isMobile && <span style={{ fontSize:11, padding:"3px 9px", borderRadius:20, background:"rgba(59,130,246,.1)", color:"#60a5fa", fontWeight:600 }}>{CONV_STATUS[conv.status]||conv.status}</span>}
+        <button style={S.btn("success",true)} onClick={simularMsgEntrada} title="Simular mensagem recebida">
+          {isMobile ? "⬇" : "⬇ Receber"}
+        </button>
+      </div>
+    </div>
+
+    {/* Mensagens */}
+    <div style={{ flex:1, overflowY:"auto", padding:isMobile?12:16, display:"flex", flexDirection:"column", gap:10 }}>
+      {conv.msgs.length === 0 && (
+        <div style={{ textAlign:"center", color:"#334155", marginTop:40 }}>
+          <div style={{ fontSize:40, marginBottom:10 }}>🤖</div>
+          <div style={{ fontSize:13 }}>Conversa iniciada.<br/>Toque em "⬇" para simular mensagem do lead.</div>
+        </div>
+      )}
+      {conv.msgs.map(m=>(
+        <div key={m.id}>
+          <div style={{ display:"flex", justifyContent:m.de==="ia"?"flex-start":"flex-end" }}>
+            {m.de==="ia" && (
+              <div style={{ width:28, height:28, borderRadius:"50%", background:"linear-gradient(135deg,#10b981,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, marginRight:8, flexShrink:0, alignSelf:"flex-end" }}>🤖</div>
+            )}
+            <div style={{ maxWidth:isMobile?"85%":"72%", background:m.de==="ia"?"#0d1117":"#1e40af", border:m.de==="ia"?"1px solid #1e293b":"none", borderRadius:m.de==="ia"?"4px 14px 14px 14px":"14px 4px 14px 14px", padding:"10px 13px" }}>
+              <div style={{ fontSize:13, color:"#e2e8f0", lineHeight:1.6, whiteSpace:"pre-wrap" }}>{m.texto}</div>
+              <div style={{ display:"flex", gap:6, marginTop:4, alignItems:"center", flexWrap:"wrap" }}>
+                <span style={{ fontSize:10, color:"#334155" }}>{m.hora}</span>
+                {m.de==="ia" && m.analise && !isMobile && (
+                  <span style={{ fontSize:9, color:"#334155" }}>· {m.analise.score} · {m.analise.intencao}</span>
+                )}
+              </div>
+            </div>
+          </div>
+          {m.de==="ia" && m.acoes && Object.entries(m.acoes).some(([,v])=>v===true) && (
+            <div style={{ display:"flex", gap:5, marginTop:6, marginLeft:isMobile?0:36, flexWrap:"wrap" }}>
+              {m.acoes.criarLead      && <span style={S.badge("#10b981","rgba(16,185,129,.1)",true)}>✓ Lead criado</span>}
+              {m.acoes.agendarDemo    && <span style={S.badge("#3b82f6","rgba(59,130,246,.1)",true)}>✓ Demo</span>}
+              {m.acoes.enviarProposta && <span style={S.badge("#f59e0b","rgba(245,158,11,.1)",true)}>✓ Proposta</span>}
+              {m.acoes.transferirHumano && <span style={S.badge("#8b5cf6","rgba(139,92,246,.1)",true)}>✓ Transferido</span>}
+              {m.acoes.planoSugerido  && <span style={S.badge("#06b6d4","rgba(6,182,212,.1)",true)}>{m.acoes.planoSugerido}</span>}
+            </div>
+          )}
+        </div>
+      ))}
+      {loading && (
+        <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
+          <div style={{ width:28,height:28,borderRadius:"50%",background:"linear-gradient(135deg,#10b981,#3b82f6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12 }}>🤖</div>
+          <div style={{ background:"#0d1117",border:"1px solid #1e293b",borderRadius:"4px 14px 14px 14px",padding:"12px 16px" }}>
+            <div style={{ display:"flex",gap:4 }}>
+              {[0,1,2].map(i=><div key={i} style={{ width:6,height:6,borderRadius:"50%",background:"#3b82f6",animation:`pulse 1.2s ease-in-out ${i*0.2}s infinite` }} />)}
+            </div>
+          </div>
+        </div>
+      )}
+      <div ref={bottomRef} />
+    </div>
+
+    {/* Input — fontSize 16 previne zoom iOS */}
+    <div style={{ padding:isMobile?"10px 12px 18px":"10px 14px", borderTop:"1px solid #1e293b", display:"flex", gap:8, flexShrink:0 }}>
+      <input
+        style={{ ...S.inp, flex:1, padding:"12px 14px", fontSize:16, resize:"none" }}
+        placeholder="Simular mensagem do lead..."
+        value={inputMsg}
+        onChange={e => setInputMsg(e.target.value)}
+        onKeyDown={e => { if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); enviarManual(); } }}
+      />
+      <button
+        style={{ ...S.btn("primary",true), padding:"12px 18px", flexShrink:0 }}
+        onClick={enviarManual}
+        disabled={loading}
+      >↗</button>
+    </div>
+  </div>
+);
+
+// Orquestrador — mantém estado, passa props para os sub-componentes estáveis
 const AbaConversas = ({ config, convs, setConvs, onLeadCriado }) => {
-  const isMobile                      = useIsMobile();
-  const [convAtiva, setConvAtiva]     = useState(null);
-  const [inputMsg, setInputMsg]       = useState("");
-  const [loading, setLoading]         = useState(false);
-  const [novaConv, setNovaConv]       = useState(false);
-  const [novoNum, setNovoNum]         = useState("");
-  const [novoNome, setNovoNome]       = useState("");
-  const bottomRef = useRef();
+  const isMobile                   = useIsMobile();
+  const [convAtiva, setConvAtiva]  = useState(null);
+  const [inputMsg, setInputMsg]    = useState("");
+  const [loading, setLoading]      = useState(false);
+  const [novaConv, setNovaConv]    = useState(false);
+  const [novoNum, setNovoNum]      = useState("");
+  const [novoNome, setNovoNome]    = useState("");
+  const bottomRef                  = useRef();
 
   useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[convAtiva, convs]);
 
-  const conv = convs.find(c=>c.id===convAtiva);
-
-  // Mobile: ao abrir conversa, esconde lista e mostra chat tela cheia
-  const abrirConversa = (id) => { setConvAtiva(id); };
-  const voltarLista   = () => { setConvAtiva(null); };
+  const conv          = convs.find(c=>c.id===convAtiva);
+  const abrirConversa = (id) => setConvAtiva(id);
+  const voltarLista   = ()  => setConvAtiva(null);
 
   const iniciarConversa = () => {
     if (!novoNum) return;
@@ -312,8 +460,7 @@ const AbaConversas = ({ config, convs, setConvs, onLeadCriado }) => {
   const simularMsgEntrada = async () => {
     if (!conv) return;
     const frases = ["Olá, vi o anúncio de vocês. Como funciona?","Quero saber mais sobre os planos","Quanto custa?","Tenho 4 vendedores. Vocês atendem pequenas empresas?","Pode me falar mais sobre a integração com WhatsApp?","Gostaria de ver uma demonstração"];
-    const txt = frases[Math.floor(Math.random()*frases.length)];
-    await processarMensagem(conv, txt, "cliente");
+    await processarMensagem(conv, frases[Math.floor(Math.random()*frases.length)], "cliente");
   };
 
   const processarMensagem = useCallback(async (c, texto, origem="cliente") => {
@@ -321,195 +468,64 @@ const AbaConversas = ({ config, convs, setConvs, onLeadCriado }) => {
     setLoading(true);
     const msgCliente = { id:Date.now(), de:"cliente", texto, hora:hora(), origem };
     const msgsAtualizadas = [...c.msgs, msgCliente];
-    setConvs(prev => {
-      const u = prev.map(x => x.id===c.id ? {...x, msgs:msgsAtualizadas, ultimaMensagem:texto} : x);
-      saveConvs(u); return u;
-    });
+    setConvs(prev => { const u=prev.map(x=>x.id===c.id?{...x,msgs:msgsAtualizadas,ultimaMensagem:texto}:x); saveConvs(u); return u; });
+
     const resultado = await chamarIA(config, c.msgs, texto);
     if (!resultado) { setLoading(false); return; }
     const { resposta, analise, acoes } = resultado;
     const msgIA = { id:Date.now()+1, de:"ia", texto:resposta, hora:hora(), analise, acoes };
     const msgsFinal = [...msgsAtualizadas, msgIA];
+
     let novoStatus = c.status;
     let novoScore  = analise?.score || c.score;
     let leadCriado = c.leadCriado;
     let leadId     = c.leadId;
+
     if (acoes?.criarLead && !c.leadCriado && config.autoCriarLead) {
       const novoLead = {
-        id: Date.now()+2,
-        nome:    analise?.nomeContato || c.nome,
-        telefone: c.numero,
-        email:   "",
-        origem:  "WhatsApp",
-        responsavel: config.vendedorTransferencia || "Fernando",
-        status:  "novo",
-        valor:   acoes?.planoSugerido === "Business" ? 397 : acoes?.planoSugerido === "Pro" ? 197 : 97,
-        previsao:"",
-        obs:     acoes?.notaInterna || "",
-        score:   novoScore,
-        segmento: analise?.segmento || "",
-        criadoPor: "IA",
-        criadoEm: ts(),
+        id: Date.now()+2, nome: analise?.nomeContato||c.nome, telefone:c.numero, email:"",
+        origem:"WhatsApp", responsavel:config.vendedorTransferencia||"Fernando",
+        status:"novo", valor:acoes?.planoSugerido==="Business"?397:acoes?.planoSugerido==="Pro"?197:97,
+        previsao:"", obs:acoes?.notaInterna||"", score:novoScore,
+        segmento:analise?.segmento||"", criadoPor:"IA", criadoEm:ts(),
       };
       const existentes = getIALeads();
-      saveIALeads([novoLead, ...existentes]);
+      saveIALeads([novoLead,...existentes]);
       onLeadCriado?.(novoLead);
-      leadCriado = true; leadId = novoLead.id;
-      novoStatus = "qualificado";
+      leadCriado=true; leadId=novoLead.id; novoStatus="qualificado";
     }
-    if (acoes?.agendarDemo) novoStatus = "qualificado";
+    if (acoes?.agendarDemo) novoStatus="qualificado";
     if (acoes?.transferirHumano) {
-      novoStatus = "transferido";
-      console.log(`[VendaFlow IA] Lead ${c.nome} transferido para ${config.vendedorTransferencia||"Fernando"} | Score: ${novoScore} | Nota: ${acoes?.notaInterna}`);
+      novoStatus="transferido";
+      console.log(`[VendaFlow IA] Transferido: ${c.nome} → ${config.vendedorTransferencia||"Fernando"} | Score: ${novoScore}`);
     }
-    if (analise?.intencao === "pronto_comprar") novoStatus = "qualificado";
-    if (config.waProvider !== "demo" && config.waApiUrl && config.ativo) {
-      enviarWhatsApp(config, c.numero, resposta).catch(console.error);
-    }
-    setConvs(prev => {
-      const u = prev.map(x => x.id===c.id ? { ...x, msgs:msgsFinal, status:novoStatus, score:novoScore, leadCriado, leadId, ultimaMensagem:resposta, analise } : x);
-      saveConvs(u); return u;
-    });
+    if (analise?.intencao==="pronto_comprar") novoStatus="qualificado";
+    if (config.waProvider!=="demo"&&config.waApiUrl&&config.ativo) enviarWhatsApp(config,c.numero,resposta).catch(console.error);
+
+    setConvs(prev => { const u=prev.map(x=>x.id===c.id?{...x,msgs:msgsFinal,status:novoStatus,score:novoScore,leadCriado,leadId,ultimaMensagem:resposta,analise}:x); saveConvs(u); return u; });
     setLoading(false);
   }, [config, loading]);
 
-  const enviarManual = async () => {
-    if (!inputMsg.trim() || !conv) return;
-    const txt = inputMsg; setInputMsg("");
+  const enviarManual = useCallback(async () => {
+    if (!inputMsg.trim()||!conv) return;
+    const txt = inputMsg;
+    setInputMsg("");
     await processarMensagem(conv, txt, "manual");
-  };
+  }, [inputMsg, conv, processarMensagem]);
 
-  // ── LISTA DE CONVERSAS ──
-  const ListaConversas = () => (
-    <div style={{ background:"#0d1117", border:"1px solid #1e293b", borderRadius:12, display:"flex", flexDirection:"column", overflow:"hidden", height: isMobile ? "calc(100vh - 240px)" : "100%" }}>
-      <div style={{ padding:"12px 14px", borderBottom:"1px solid #1e293b", display:"flex", gap:8, alignItems:"center" }}>
-        <span style={{ flex:1, fontSize:13, fontWeight:700, color:"#f1f5f9" }}>Conversas ({convs.length})</span>
-        <button style={S.btn("primary",true)} onClick={()=>setNovaConv(true)}>+ Nova</button>
-      </div>
-      {novaConv && (
-        <div style={{ padding:"12px 14px", background:"#111827", borderBottom:"1px solid #1e293b" }}>
-          <input style={{...S.inp, marginBottom:8, fontSize:16, padding:"11px 13px"}} placeholder="Número WhatsApp (5511...)" value={novoNum} onChange={e=>setNovoNum(e.target.value)} inputMode="tel" />
-          <input style={{...S.inp, marginBottom:8, fontSize:16, padding:"11px 13px"}} placeholder="Nome (opcional)" value={novoNome} onChange={e=>setNovoNome(e.target.value)} />
-          <div style={{ display:"flex", gap:6 }}>
-            <button style={{...S.btn("secondary",true),flex:1}} onClick={()=>setNovaConv(false)}>Cancelar</button>
-            <button style={{...S.btn("primary",true),flex:1}} onClick={iniciarConversa}>Iniciar</button>
-          </div>
-        </div>
-      )}
-      <div style={{ flex:1, overflowY:"auto" }}>
-        {convs.length === 0 && (
-          <div style={{ padding:32, textAlign:"center", color:"#334155", fontSize:13 }}>
-            <div style={{ fontSize:36, marginBottom:10 }}>💬</div>
-            Nenhuma conversa ainda.<br/>Toque em "+ Nova" para iniciar.
-          </div>
-        )}
-        {convs.map(c=>(
-          <div key={c.id} onClick={()=>abrirConversa(c.id)}
-            style={{ padding:"13px 15px", borderBottom:"1px solid rgba(30,41,59,.5)", cursor:"pointer", background:convAtiva===c.id&&!isMobile?"rgba(59,130,246,.08)":"transparent", borderLeft:`3px solid ${convAtiva===c.id&&!isMobile?"#3b82f6":"transparent"}`, transition:"all .15s", minHeight:68, display:"flex", flexDirection:"column", justifyContent:"center" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-              <span style={{ fontSize:14, fontWeight:700, color:"#f1f5f9", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth: isMobile?200:140 }}>{c.nome}</span>
-              <div style={{ display:"flex", gap:4, flexShrink:0 }}>
-                {c.leadCriado && <span style={{ fontSize:9, fontWeight:700, padding:"2px 6px", borderRadius:10, background:"rgba(16,185,129,.15)", color:"#10b981" }}>LEAD</span>}
-                <ScoreBadge score={c.score} />
-              </div>
-            </div>
-            <div style={{ fontSize:12, color:"#475569", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginBottom:3 }}>{c.ultimaMensagem || "Sem mensagens"}</div>
-            <div style={{ display:"flex", justifyContent:"space-between" }}>
-              <span style={{ fontSize:11, color:"#334155" }}>{c.numero}</span>
-              <span style={{ fontSize:11, padding:"1px 7px", borderRadius:10, background:"rgba(59,130,246,.08)", color:CONV_COLORS[c.status]||"#475569", fontWeight:600 }}>{CONV_STATUS[c.status]||c.status}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  // Props para sub-componentes (sem re-criar os componentes)
+  const listaProps = { convs, convAtiva, isMobile, novaConv, setNovaConv, novoNum, setNovoNum, novoNome, setNovoNome, abrirConversa, iniciarConversa };
+  const chatProps  = conv ? { conv, isMobile, loading, inputMsg, setInputMsg, enviarManual, simularMsgEntrada, voltarLista, bottomRef } : null;
 
-  // ── JANELA DE CHAT ──
-  const JanelChat = () => (
-    <div style={{ display:"flex", flexDirection:"column", background:"#080c14", border:"1px solid #1e293b", borderRadius:12, overflow:"hidden", height: isMobile ? "calc(100vh - 180px)" : "100%" }}>
-      {/* Header */}
-      <div style={{ padding:"11px 14px", background:"#0d1117", borderBottom:"1px solid #1e293b", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-        {isMobile && (
-          <button onClick={voltarLista} style={{ background:"#1e293b", border:"none", color:"#94a3b8", width:34, height:34, borderRadius:9, cursor:"pointer", fontSize:16, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>‹</button>
-        )}
-        <div style={{ width:36, height:36, borderRadius:"50%", background:"linear-gradient(135deg,#25d366,#128c7e)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>💬</div>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontSize:14, fontWeight:700, color:"#f1f5f9", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{conv.nome}</div>
-          <div style={{ fontSize:11, color:"#475569" }}>{conv.numero} · {conv.msgs.length} msgs</div>
-        </div>
-        <div style={{ display:"flex", gap:6, alignItems:"center", flexShrink:0 }}>
-          <ScoreBadge score={conv.score} />
-          {!isMobile && <span style={{ fontSize:11, padding:"3px 9px", borderRadius:20, background:"rgba(59,130,246,.1)", color:"#60a5fa", fontWeight:600 }}>{CONV_STATUS[conv.status]||conv.status}</span>}
-          <button style={S.btn("success",true)} onClick={simularMsgEntrada} title="Simular mensagem recebida">{isMobile?"⬇":"⬇ Receber"}</button>
-        </div>
-      </div>
-
-      {/* Mensagens */}
-      <div style={{ flex:1, overflowY:"auto", padding:isMobile?12:16, display:"flex", flexDirection:"column", gap:10 }}>
-        {conv.msgs.length === 0 && (
-          <div style={{ textAlign:"center", color:"#334155", marginTop:40 }}>
-            <div style={{ fontSize:40, marginBottom:10 }}>🤖</div>
-            <div style={{ fontSize:13 }}>Conversa iniciada.<br/>Toque em "⬇" para simular mensagem do lead.</div>
-          </div>
-        )}
-        {conv.msgs.map(m=>(
-          <div key={m.id}>
-            <div style={{ display:"flex", justifyContent:m.de==="ia"?"flex-start":"flex-end" }}>
-              {m.de==="ia" && <div style={{ width:28, height:28, borderRadius:"50%", background:"linear-gradient(135deg,#10b981,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, marginRight:8, flexShrink:0, alignSelf:"flex-end" }}>🤖</div>}
-              <div style={{ maxWidth:isMobile?"85%":"72%", background:m.de==="ia"?"#0d1117":"#1e40af", border:m.de==="ia"?"1px solid #1e293b":"none", borderRadius:m.de==="ia"?"4px 14px 14px 14px":"14px 4px 14px 14px", padding:"10px 13px" }}>
-                <div style={{ fontSize:13, color:"#e2e8f0", lineHeight:1.6, whiteSpace:"pre-wrap" }}>{m.texto}</div>
-                <div style={{ display:"flex", gap:6, marginTop:4, alignItems:"center", flexWrap:"wrap" }}>
-                  <span style={{ fontSize:10, color:"#334155" }}>{m.hora}</span>
-                  {m.de==="ia" && m.analise && !isMobile && <span style={{ fontSize:9, color:"#334155" }}>· {m.analise.score} · {m.analise.intencao}</span>}
-                </div>
-              </div>
-            </div>
-            {m.de==="ia" && m.acoes && Object.entries(m.acoes).some(([k,v])=>v===true) && (
-              <div style={{ display:"flex", gap:5, marginTop:6, marginLeft:isMobile?0:36, flexWrap:"wrap" }}>
-                {m.acoes.criarLead      && <span style={S.badge("#10b981","rgba(16,185,129,.1)",true)}>✓ Lead criado</span>}
-                {m.acoes.agendarDemo    && <span style={S.badge("#3b82f6","rgba(59,130,246,.1)",true)}>✓ Demo</span>}
-                {m.acoes.enviarProposta && <span style={S.badge("#f59e0b","rgba(245,158,11,.1)",true)}>✓ Proposta</span>}
-                {m.acoes.transferirHumano&&<span style={S.badge("#8b5cf6","rgba(139,92,246,.1)",true)}>✓ Transferido</span>}
-                {m.acoes.planoSugerido  && <span style={S.badge("#06b6d4","rgba(6,182,212,.1)",true)}>{m.acoes.planoSugerido}</span>}
-              </div>
-            )}
-          </div>
-        ))}
-        {loading && (
-          <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
-            <div style={{ width:28,height:28,borderRadius:"50%",background:"linear-gradient(135deg,#10b981,#3b82f6)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12 }}>🤖</div>
-            <div style={{ background:"#0d1117",border:"1px solid #1e293b",borderRadius:"4px 14px 14px 14px",padding:"12px 16px" }}>
-              <div style={{ display:"flex",gap:4 }}>{[0,1,2].map(i=><div key={i} style={{ width:6,height:6,borderRadius:"50%",background:"#3b82f6",animation:`pulse 1.2s ease-in-out ${i*0.2}s infinite` }} />)}</div>
-            </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
-
-      {/* Input */}
-      <div style={{ padding:isMobile?"10px 12px 16px":"10px 14px", borderTop:"1px solid #1e293b", display:"flex", gap:8, flexShrink:0 }}>
-        <input
-          style={{...S.inp, flex:1, padding:"11px 13px", fontSize:16}}
-          placeholder="Simular mensagem do lead..."
-          value={inputMsg}
-          onChange={e=>setInputMsg(e.target.value)}
-          onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&enviarManual()}
-        />
-        <button style={{...S.btn("primary",true), padding:"11px 16px", flexShrink:0}} onClick={enviarManual} disabled={loading}>↗</button>
-      </div>
-    </div>
-  );
-
-  // ── LAYOUT: mobile = tela cheia por vez | desktop = side-by-side ──
   if (isMobile) {
-    return conv ? <JanelChat /> : <ListaConversas />;
+    return chatProps ? <JanelChat {...chatProps} /> : <ListaConversas {...listaProps} />;
   }
 
   return (
     <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:0, height:"calc(100vh - 200px)", minHeight:440 }}>
-      <ListaConversas />
-      {conv
-        ? <div style={{ borderLeft:"none", height:"100%" }}><JanelChat /></div>
+      <ListaConversas {...listaProps} />
+      {chatProps
+        ? <JanelChat {...chatProps} />
         : <div style={{ background:"#080c14", border:"1px solid #1e293b", borderLeft:"none", borderRadius:"0 12px 12px 0", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:12, color:"#334155" }}>
             <div style={{ fontSize:40 }}>💬</div>
             <div style={{ fontSize:13 }}>Selecione uma conversa à esquerda</div>
@@ -518,6 +534,7 @@ const AbaConversas = ({ config, convs, setConvs, onLeadCriado }) => {
     </div>
   );
 };
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ABA: LEADS IA
