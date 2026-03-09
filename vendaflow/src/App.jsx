@@ -19,13 +19,70 @@ const clearSession=()=> localStorage.removeItem(SESSION_KEY);
 // Inicializa users no localStorage se não existir
 if (!localStorage.getItem(USERS_DB_KEY)) saveUsers(defaultUsers);
 
-// ── TELA DE LOGIN ──────────────────────────────────────────────────────────
+// ── HOOK: DRAGGABLE ────────────────────────────────────────────────────────
+// ── HOOK: DRAGGABLE ────────────────────────────────────────────────────────
+// initFn: () => {x,y} — lazy, usa dimensões reais da janela no momento do mount
+const useDraggable = (initFn) => {
+  const [pos, setPos]     = useState(() => initFn());
+  const [dragging, setDrag] = useState(false);
+  const [moved, setMoved]   = useState(false);
+  const offset              = useRef({ x:0, y:0 });
+
+  // Recentra automaticamente ao redimensionar (só se usuário nunca arrastou)
+  useEffect(() => {
+    if (moved) return;
+    const fn = () => setPos(initFn());
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, [moved]);
+
+  const onMouseDown = (e) => {
+    if (e.target.closest && e.target.closest(".no-drag")) return;
+    setDrag(true); setMoved(true);
+    offset.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
+    e.preventDefault();
+  };
+  const onTouchStart = (e) => {
+    if (e.target.closest && e.target.closest(".no-drag")) return;
+    const t = e.touches[0];
+    setDrag(true); setMoved(true);
+    offset.current = { x: t.clientX - pos.x, y: t.clientY - pos.y };
+  };
+  useEffect(() => {
+    const move = (e) => {
+      if (!dragging) return;
+      const cx = e.touches ? e.touches[0].clientX : e.clientX;
+      const cy = e.touches ? e.touches[0].clientY : e.clientY;
+      setPos({ x: cx - offset.current.x, y: cy - offset.current.y });
+    };
+    const up = () => setDrag(false);
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup",   up);
+    window.addEventListener("touchmove", move, { passive:true });
+    window.addEventListener("touchend",  up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup",   up);
+      window.removeEventListener("touchmove", move);
+      window.removeEventListener("touchend",  up);
+    };
+  }, [dragging]);
+  return { pos, onMouseDown, onTouchStart, dragging };
+};
+
+// ── TELA DE LOGIN (FLUTUANTE + CENTRALIZAD) ───────────────────────────────
 const LoginScreen = ({ onLogin }) => {
   const [email, setEmail]     = useState("");
   const [senha, setSenha]     = useState("");
   const [showSenha, setShow]  = useState(false);
   const [erro, setErro]       = useState("");
   const [loading, setLoading] = useState(false);
+  const cardW = () => Math.min(420, window.innerWidth - 32);
+  const cardH = () => Math.min(640, window.innerHeight - 40);
+  const { pos, onMouseDown, onTouchStart, dragging } = useDraggable(() => ({
+    x: Math.max(0, (window.innerWidth  - cardW()) / 2),
+    y: Math.max(20, (window.innerHeight - cardH()) / 2),
+  }));
 
   const handleLogin = () => {
     if (!email || !senha) { setErro("Preencha e-mail e senha."); return; }
@@ -33,21 +90,21 @@ const LoginScreen = ({ onLogin }) => {
     setTimeout(() => {
       const users = getUsers();
       const user  = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.senha === senha);
-      if (!user)        { setErro("E-mail ou senha incorretos."); setLoading(false); return; }
-      if (!user.ativo)  { setErro("Usuário inativo. Contate o administrador."); setLoading(false); return; }
-      saveSession(user);
-      onLogin(user);
+      if (!user)       { setErro("E-mail ou senha incorretos."); setLoading(false); return; }
+      if (!user.ativo) { setErro("Usuário inativo. Contate o administrador."); setLoading(false); return; }
+      saveSession(user); onLogin(user);
     }, 800);
   };
 
   const lFS = `
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap');
     * { box-sizing:border-box; margin:0; padding:0; }
-    html,body,#root { height:100%; }
+    html,body,#root { height:100%; overflow:hidden; }
     body { font-family:'Outfit',sans-serif; background:#080c14; color:#e2e8f0; -webkit-font-smoothing:antialiased; }
-    @keyframes fadeIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
-    @keyframes float  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-    .login-card { animation: fadeIn .5s ease forwards; }
+    @keyframes fadeIn  { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:scale(1)} }
+    @keyframes float   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
+    @keyframes bgPulse { 0%,100%{opacity:.5} 50%{opacity:1} }
+    .lf { animation: fadeIn .35s ease forwards; }
     input { font-size:16px !important; }
     @media(min-width:768px){ input{font-size:14px !important;} }
   `;
@@ -55,189 +112,166 @@ const LoginScreen = ({ onLogin }) => {
   return (
     <>
       <style>{lFS}</style>
-      {/* Background grid */}
       <div style={{ position:"fixed", inset:0, background:"#080c14", overflow:"hidden" }}>
-        <div style={{ position:"absolute", inset:0, backgroundImage:"linear-gradient(rgba(59,130,246,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,.04) 1px,transparent 1px)", backgroundSize:"40px 40px" }} />
-        <div style={{ position:"absolute", top:"20%", left:"50%", transform:"translateX(-50%)", width:500, height:500, background:"radial-gradient(circle, rgba(59,130,246,.08) 0%, transparent 70%)", pointerEvents:"none" }} />
+        <div style={{ position:"absolute", inset:0, backgroundImage:"linear-gradient(rgba(59,130,246,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,.04) 1px,transparent 1px)", backgroundSize:"44px 44px" }} />
+        <div style={{ position:"absolute", top:"15%", left:"25%", width:400, height:400, background:"radial-gradient(circle, rgba(59,130,246,.07) 0%, transparent 70%)", animation:"bgPulse 4s ease-in-out infinite", pointerEvents:"none" }} />
+        <div style={{ position:"absolute", bottom:"20%", right:"20%", width:300, height:300, background:"radial-gradient(circle, rgba(139,92,246,.06) 0%, transparent 70%)", animation:"bgPulse 5s ease-in-out infinite 1s", pointerEvents:"none" }} />
+        <div style={{ position:"absolute", bottom:14, left:"50%", transform:"translateX(-50%)", fontSize:11, color:"rgba(255,255,255,.05)", fontWeight:700, letterSpacing:"0.15em", whiteSpace:"nowrap" }}>VENDAFLOW CRM © 2024</div>
       </div>
 
-      <div style={{ position:"relative", minHeight:"100%", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-        <div className="login-card" style={{ width:"100%", maxWidth:420 }}>
-
-          {/* Logo */}
-          <div style={{ textAlign:"center", marginBottom:36 }}>
-            <div style={{ width:56, height:56, borderRadius:16, background:"linear-gradient(135deg,#3b82f6,#8b5cf6)", display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:26, marginBottom:14, animation:"float 3s ease-in-out infinite", boxShadow:"0 0 40px rgba(59,130,246,.3)" }}>⚡</div>
-            <div style={{ fontSize:28, fontWeight:800, color:"#fff", letterSpacing:"-0.03em" }}>VendaFlow</div>
-            <div style={{ fontSize:13, color:"#475569", marginTop:4, fontWeight:500 }}>CRM Inteligente</div>
+      <div className="lf" onMouseDown={onMouseDown} onTouchStart={onTouchStart}
+        style={{ position:"fixed", left:pos.x, top:pos.y, width:cardW(), zIndex:10, cursor:dragging?"grabbing":"grab", userSelect:"none", filter:"drop-shadow(0 28px 56px rgba(0,0,0,.7))" }}>
+        {/* Drag titlebar */}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 14px", background:"rgba(13,17,23,.9)", border:"1px solid #1e293b", borderRadius:"12px 12px 0 0", backdropFilter:"blur(10px)" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ display:"flex", gap:5 }}>{["#ef4444","#f59e0b","#10b981"].map(c=><div key={c} style={{ width:10,height:10,borderRadius:"50%",background:c,opacity:.7 }} />)}</div>
+            <span style={{ fontSize:11, color:"#334155", fontWeight:700, letterSpacing:"0.06em" }}>VENDAFLOW · LOGIN — arraste para mover</span>
           </div>
+          <div style={{ display:"flex", gap:3 }}>{[1,2,3,4,5].map(i=><div key={i} style={{ width:3,height:3,borderRadius:"50%",background:"#334155" }} />)}</div>
+        </div>
 
-          {/* Card */}
-          <div style={{ background:"#0d1117", border:"1px solid #1e293b", borderRadius:20, padding:"32px 28px", boxShadow:"0 24px 60px rgba(0,0,0,.5)" }}>
-            <h2 style={{ fontSize:20, fontWeight:700, color:"#f1f5f9", marginBottom:6 }}>Bem-vindo de volta 👋</h2>
-            <p style={{ fontSize:13, color:"#475569", marginBottom:28 }}>Entre com suas credenciais para acessar</p>
+        {/* Logo */}
+        <div style={{ textAlign:"center", padding:"18px 0 12px", background:"rgba(13,17,23,.97)", borderLeft:"1px solid #1e293b", borderRight:"1px solid #1e293b" }}>
+          <div style={{ width:50,height:50,borderRadius:14,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:22,marginBottom:10,animation:"float 3s ease-in-out infinite",boxShadow:"0 0 36px rgba(59,130,246,.4)" }}>⚡</div>
+          <div style={{ fontSize:24, fontWeight:800, color:"#fff", letterSpacing:"-0.03em" }}>VendaFlow</div>
+          <div style={{ fontSize:12, color:"#475569", marginTop:3 }}>CRM Inteligente</div>
+        </div>
 
-            {/* E-mail */}
-            <div style={{ marginBottom:14 }}>
-              <label style={{ fontSize:12, color:"#64748b", fontWeight:600, display:"block", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.05em" }}>E-mail</label>
-              <input
-                type="email" value={email} onChange={e=>{setEmail(e.target.value);setErro("");}}
-                onKeyDown={e=>e.key==="Enter"&&handleLogin()}
-                placeholder="seu@email.com"
-                style={{ width:"100%", background:"#111827", border:`1px solid ${erro?"#ef4444":"#1e293b"}`, borderRadius:10, padding:"12px 14px", color:"#e2e8f0", fontFamily:"'Outfit',sans-serif", outline:"none" }}
-              />
-            </div>
-
-            {/* Senha */}
-            <div style={{ marginBottom:8 }}>
-              <label style={{ fontSize:12, color:"#64748b", fontWeight:600, display:"block", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.05em" }}>Senha</label>
-              <div style={{ position:"relative" }}>
-                <input
-                  type={showSenha?"text":"password"} value={senha} onChange={e=>{setSenha(e.target.value);setErro("");}}
-                  onKeyDown={e=>e.key==="Enter"&&handleLogin()}
-                  placeholder="••••••••"
-                  style={{ width:"100%", background:"#111827", border:`1px solid ${erro?"#ef4444":"#1e293b"}`, borderRadius:10, padding:"12px 44px 12px 14px", color:"#e2e8f0", fontFamily:"'Outfit',sans-serif", outline:"none" }}
-                />
-                <button onClick={()=>setShow(!showSenha)} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#475569", cursor:"pointer", fontSize:16, padding:4 }}>
-                  {showSenha ? "🙈" : "👁️"}
-                </button>
-              </div>
-            </div>
-
-            {/* Erro */}
-            {erro && (
-              <div style={{ background:"rgba(239,68,68,.1)", border:"1px solid rgba(239,68,68,.3)", borderRadius:8, padding:"10px 14px", marginBottom:16, display:"flex", alignItems:"center", gap:8 }}>
-                <span style={{ fontSize:14 }}>⚠️</span>
-                <span style={{ fontSize:13, color:"#fca5a5" }}>{erro}</span>
-              </div>
-            )}
-
-            {/* Btn */}
-            <button onClick={handleLogin} disabled={loading} style={{ width:"100%", padding:"13px", borderRadius:12, border:"none", background:loading?"#1e293b":"linear-gradient(135deg,#3b82f6,#2563eb)", color:"#fff", fontFamily:"'Outfit',sans-serif", fontWeight:700, fontSize:15, cursor:loading?"not-allowed":"pointer", marginTop:erro?0:16, transition:"all .2s", boxShadow:loading?"none":"0 4px 20px rgba(59,130,246,.3)" }}>
-              {loading ? "Entrando..." : "Entrar no sistema →"}
-            </button>
-
-            {/* Hint */}
-            <div style={{ marginTop:24, padding:"14px", background:"#111827", borderRadius:10, border:"1px solid #1e293b" }}>
-              <div style={{ fontSize:11, color:"#334155", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8 }}>Contas de demonstração</div>
-              {defaultUsers.map(u=>(
-                <div key={u.id} onClick={()=>{setEmail(u.email);setSenha(u.senha);setErro("");}} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 0", cursor:"pointer", borderBottom:"1px solid rgba(30,41,59,.5)" }}>
-                  <div style={{ width:26, height:26, borderRadius:"50%", background:u.cor, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, color:"#fff", flexShrink:0 }}>{u.avatar}</div>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontSize:12, fontWeight:600, color:"#94a3b8" }}>{u.nome} <span style={{ color:"#334155" }}>·</span> <span style={{ color:u.perfil==="admin"?"#f59e0b":"#60a5fa", fontSize:11 }}>{u.perfil}</span></div>
-                    <div style={{ fontSize:11, color:"#334155" }}>{u.email}</div>
-                  </div>
-                  <span style={{ fontSize:10, color:"#334155" }}>clique →</span>
-                </div>
-              ))}
+        {/* Form */}
+        <div className="no-drag" style={{ background:"rgba(13,17,23,.97)", border:"1px solid #1e293b", borderTop:"none", borderRadius:"0 0 16px 16px", padding:"20px 22px 22px", backdropFilter:"blur(20px)" }}>
+          <h2 style={{ fontSize:17, fontWeight:700, color:"#f1f5f9", marginBottom:3 }}>Bem-vindo de volta 👋</h2>
+          <p style={{ fontSize:12, color:"#475569", marginBottom:18 }}>Entre com suas credenciais para acessar</p>
+          <div style={{ marginBottom:12 }}>
+            <label style={{ fontSize:11, color:"#64748b", fontWeight:700, display:"block", marginBottom:5, textTransform:"uppercase", letterSpacing:"0.06em" }}>E-mail</label>
+            <input type="email" value={email} onChange={e=>{setEmail(e.target.value);setErro("");}} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="seu@email.com"
+              style={{ width:"100%", background:"#111827", border:`1px solid ${erro?"#ef4444":"#1e293b"}`, borderRadius:9, padding:"11px 13px", color:"#e2e8f0", fontFamily:"'Outfit',sans-serif", outline:"none" }} />
+          </div>
+          <div style={{ marginBottom:6 }}>
+            <label style={{ fontSize:11, color:"#64748b", fontWeight:700, display:"block", marginBottom:5, textTransform:"uppercase", letterSpacing:"0.06em" }}>Senha</label>
+            <div style={{ position:"relative" }}>
+              <input type={showSenha?"text":"password"} value={senha} onChange={e=>{setSenha(e.target.value);setErro("");}} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="••••••••"
+                style={{ width:"100%", background:"#111827", border:`1px solid ${erro?"#ef4444":"#1e293b"}`, borderRadius:9, padding:"11px 42px 11px 13px", color:"#e2e8f0", fontFamily:"'Outfit',sans-serif", outline:"none" }} />
+              <button onClick={()=>setShow(!showSenha)} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#475569", cursor:"pointer", fontSize:15 }}>{showSenha?"🙈":"👁️"}</button>
             </div>
           </div>
-
-          <p style={{ textAlign:"center", fontSize:12, color:"#1e293b", marginTop:20 }}>VendaFlow CRM © 2024</p>
+          {erro && <div style={{ background:"rgba(239,68,68,.1)", border:"1px solid rgba(239,68,68,.25)", borderRadius:8, padding:"9px 12px", margin:"10px 0", display:"flex", gap:8, alignItems:"center" }}><span>⚠️</span><span style={{ fontSize:12,color:"#fca5a5" }}>{erro}</span></div>}
+          <button onClick={handleLogin} disabled={loading}
+            style={{ width:"100%", padding:"12px", borderRadius:10, border:"none", background:loading?"#1e293b":"linear-gradient(135deg,#3b82f6,#2563eb)", color:"#fff", fontFamily:"'Outfit',sans-serif", fontWeight:700, fontSize:14, cursor:loading?"not-allowed":"pointer", marginTop:14, boxShadow:loading?"none":"0 4px 20px rgba(59,130,246,.35)", transition:"all .2s" }}>
+            {loading?"Entrando...":"Entrar no sistema →"}
+          </button>
+          <div style={{ marginTop:16, padding:"12px", background:"#0a0f18", borderRadius:10, border:"1px solid #1a2332" }}>
+            <div style={{ fontSize:10, color:"#334155", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:8 }}>Contas demo — clique para preencher</div>
+            {defaultUsers.map((u,i)=>(
+              <div key={u.id} onClick={()=>{setEmail(u.email);setSenha(u.senha);setErro("");}}
+                style={{ display:"flex", alignItems:"center", gap:9, padding:"6px 0", cursor:"pointer", borderBottom:i<defaultUsers.length-1?"1px solid rgba(30,41,59,.5)":"none", opacity:1, transition:"opacity .15s" }}
+                onMouseEnter={e=>e.currentTarget.style.opacity=".7"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+                <div style={{ width:24,height:24,borderRadius:"50%",background:u.cor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",flexShrink:0 }}>{u.avatar}</div>
+                <div style={{ flex:1 }}><span style={{ fontSize:12,fontWeight:600,color:"#94a3b8" }}>{u.nome}</span><span style={{ fontSize:11,color:u.perfil==="admin"?"#f59e0b":"#60a5fa",marginLeft:6 }}>{u.perfil}</span></div>
+                <span style={{ fontSize:10,color:"#334155" }}>→</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </>
   );
 };
 
-// ── GESTÃO DE USUÁRIOS (só Admin) ──────────────────────────────────────────
+// ── GESTÃO DE USUÁRIOS — PAINEL FLUTUANTE ARRASTÁVEL ──────────────────────
 const GestaoUsuarios = ({ currentUser }) => {
   const [users, setUsers]   = useState(getUsers());
   const [modal, setModal]   = useState(false);
   const [editUser, setEdit] = useState(null);
+  const [minimized, setMin] = useState(false);
   const EF = { nome:"", email:"", senha:"", perfil:"vendedor", ativo:true };
   const [form, setForm]     = useState(EF);
   const [erro, setErro]     = useState("");
+  const panelW = () => Math.min(600, window.innerWidth - 32);
+  const { pos, onMouseDown, onTouchStart, dragging } = useDraggable(() => ({
+    x: Math.max(0, (window.innerWidth  - panelW()) / 2),
+    y: Math.max(20, (window.innerHeight - 420) / 2),
+  }));
 
   const cores = ["linear-gradient(135deg,#3b82f6,#8b5cf6)","linear-gradient(135deg,#10b981,#06b6d4)","linear-gradient(135deg,#f59e0b,#ef4444)","linear-gradient(135deg,#8b5cf6,#ec4899)"];
-
   const abrir = (u=null) => { setEdit(u); setForm(u?{...u}:EF); setErro(""); setModal(true); };
-
   const salvar = () => {
     if (!form.nome||!form.email||!form.senha) { setErro("Preencha todos os campos."); return; }
-    const emailExiste = users.find(u=>u.email.toLowerCase()===form.email.toLowerCase()&&u.id!==editUser?.id);
-    if (emailExiste) { setErro("E-mail já cadastrado."); return; }
+    const dup = users.find(u=>u.email.toLowerCase()===form.email.toLowerCase()&&u.id!==editUser?.id);
+    if (dup) { setErro("E-mail já cadastrado."); return; }
     let updated;
-    if (editUser) {
-      updated = users.map(u=>u.id===editUser.id?{...u,...form}:u);
-    } else {
-      const novoUser = { id:Date.now(), ...form, avatar:form.nome[0].toUpperCase(), cor:cores[users.length%cores.length] };
-      updated = [...users, novoUser];
-    }
+    if (editUser) updated = users.map(u=>u.id===editUser.id?{...u,...form}:u);
+    else { const n={id:Date.now(),...form,avatar:form.nome[0].toUpperCase(),cor:cores[users.length%cores.length]}; updated=[...users,n]; }
     saveUsers(updated); setUsers(updated); setModal(false);
   };
+  const toggleAtivo = (id) => { if(id===currentUser.id) return; const u=users.map(x=>x.id===id?{...x,ativo:!x.ativo}:x); saveUsers(u); setUsers(u); };
+  const excluir     = (id) => { if(id===currentUser.id) return; if(!window.confirm("Excluir?")) return; const u=users.filter(x=>x.id!==id); saveUsers(u); setUsers(u); };
 
-  const toggleAtivo = (id) => {
-    if (id===currentUser.id) return; // não pode desativar a si mesmo
-    const updated = users.map(u=>u.id===id?{...u,ativo:!u.ativo}:u);
-    saveUsers(updated); setUsers(updated);
-  };
-
-  const excluir = (id) => {
-    if (id===currentUser.id) return;
-    if (!window.confirm("Excluir este usuário?")) return;
-    const updated = users.filter(u=>u.id!==id);
-    saveUsers(updated); setUsers(updated);
-  };
-
-  const cardS = { background:"#0d1117", border:"1px solid #1e293b", borderRadius:12 };
-  const inpS  = { background:"#111827", border:"1px solid #1e293b", borderRadius:10, padding:"12px 14px", color:"#e2e8f0", fontFamily:"'Outfit',sans-serif", outline:"none", width:"100%", fontSize:"14px" };
-  const btnS  = (v="primary") => ({ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6, padding:"10px 16px", borderRadius:10, border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontWeight:600, fontSize:13, background:v==="primary"?"#3b82f6":v==="danger"?"#ef4444":v==="success"?"#10b981":"#1e293b", color:"#fff" });
-
-  const PERFIL_LABELS = { admin:"Admin", vendedor:"Vendedor", financeiro:"Financeiro", gestor:"Gestor" };
+  const inpS = { background:"#111827", border:"1px solid #1e293b", borderRadius:9, padding:"11px 13px", color:"#e2e8f0", fontFamily:"'Outfit',sans-serif", outline:"none", width:"100%", fontSize:"14px" };
+  const btnS = (v="primary") => ({ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:5, padding:"8px 12px", borderRadius:8, border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontWeight:600, fontSize:12, background:v==="primary"?"#3b82f6":v==="danger"?"#ef4444":v==="success"?"#10b981":"#1e293b", color:"#fff" });
+  const PL   = { admin:"Admin", vendedor:"Vendedor", financeiro:"Financeiro", gestor:"Gestor" };
 
   return (
-    <div className="fade-in">
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-        <div>
-          <h2 style={{ fontSize:20, fontWeight:700, color:"#f1f5f9" }}>Usuários</h2>
-          <p style={{ fontSize:13, color:"#475569", marginTop:2 }}>{users.length} usuários cadastrados</p>
+    <>
+      <div onMouseDown={onMouseDown} onTouchStart={onTouchStart}
+        style={{ position:"fixed", left:pos.x, top:pos.y, width:panelW(), zIndex:50, cursor:dragging?"grabbing":"default", userSelect:"none", filter:"drop-shadow(0 20px 44px rgba(0,0,0,.65))" }}>
+        {/* Titlebar */}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:"#0d1117", border:"1px solid #1e293b", borderRadius:minimized?"12px":"12px 12px 0 0", cursor:"grab" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ display:"flex", gap:5 }}>{["#ef4444","#f59e0b","#10b981"].map(c=><div key={c} style={{ width:10,height:10,borderRadius:"50%",background:c,opacity:.7 }} />)}</div>
+            <span style={{ fontSize:13, fontWeight:700, color:"#f1f5f9" }}>🔐 Usuários</span>
+            <span style={{ fontSize:11, color:"#475569" }}>{users.length} cadastrados — arraste para mover</span>
+          </div>
+          <div className="no-drag" style={{ display:"flex", gap:6 }}>
+            <button onClick={()=>setMin(!minimized)} style={{ background:"#1e293b", border:"none", color:"#94a3b8", width:28, height:28, borderRadius:7, cursor:"pointer", fontSize:13, display:"flex", alignItems:"center", justifyContent:"center" }}>{minimized?"▲":"▼"}</button>
+            <button onClick={()=>abrir()} style={{ ...btnS(), padding:"6px 12px" }}>+ Novo</button>
+          </div>
         </div>
-        <button style={btnS()} onClick={()=>abrir()}>+ Novo Usuário</button>
-      </div>
-
-      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-        {users.map(u=>(
-          <div key={u.id} style={{ ...cardS, padding:16 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-              <div style={{ width:44, height:44, borderRadius:"50%", background:u.cor, display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, fontWeight:700, color:"#fff", flexShrink:0 }}>{u.avatar}</div>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                  <span style={{ fontSize:15, fontWeight:700, color:"#f1f5f9" }}>{u.nome}</span>
-                  <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:20, background:u.perfil==="admin"?"rgba(245,158,11,.15)":"rgba(59,130,246,.15)", color:u.perfil==="admin"?"#f59e0b":"#60a5fa" }}>{PERFIL_LABELS[u.perfil]||u.perfil}</span>
-                  {u.id===currentUser.id && <span style={{ fontSize:10, color:"#475569" }}>(você)</span>}
+        {/* Body */}
+        {!minimized && (
+          <div className="no-drag" style={{ background:"#080c14", border:"1px solid #1e293b", borderTop:"none", borderRadius:"0 0 12px 12px", maxHeight:400, overflowY:"auto", padding:12 }}>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {users.map(u=>(
+                <div key={u.id} style={{ background:"#0d1117", border:"1px solid #1e293b", borderRadius:10, padding:"12px 14px", display:"flex", alignItems:"center", gap:12, transition:"border .15s" }}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor="#334155"} onMouseLeave={e=>e.currentTarget.style.borderColor="#1e293b"}>
+                  <div style={{ width:36,height:36,borderRadius:"50%",background:u.cor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:"#fff",flexShrink:0 }}>{u.avatar}</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                      <span style={{ fontSize:14, fontWeight:700, color:"#f1f5f9" }}>{u.nome}</span>
+                      <span style={{ fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:20, background:u.perfil==="admin"?"rgba(245,158,11,.15)":"rgba(59,130,246,.15)", color:u.perfil==="admin"?"#f59e0b":"#60a5fa" }}>{PL[u.perfil]||u.perfil}</span>
+                      {u.id===currentUser.id&&<span style={{ fontSize:10,color:"#334155" }}>(você)</span>}
+                    </div>
+                    <div style={{ fontSize:11, color:"#475569", marginTop:2 }}>{u.email}</div>
+                  </div>
+                  <div style={{ display:"flex", gap:5, alignItems:"center", flexShrink:0 }}>
+                    <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, background:u.ativo?"rgba(16,185,129,.15)":"rgba(239,68,68,.15)", color:u.ativo?"#10b981":"#ef4444" }}>{u.ativo?"Ativo":"Inativo"}</span>
+                    <button style={btnS("secondary")} onClick={()=>abrir(u)}>✏️</button>
+                    {u.id!==currentUser.id&&<>
+                      <button style={{...btnS(u.ativo?"secondary":"success"),padding:"7px 8px"}} onClick={()=>toggleAtivo(u.id)}>{u.ativo?"🚫":"✅"}</button>
+                      <button style={{...btnS("danger"),padding:"7px 8px"}} onClick={()=>excluir(u.id)}>🗑️</button>
+                    </>}
+                  </div>
                 </div>
-                <div style={{ fontSize:12, color:"#475569", marginTop:3 }}>{u.email}</div>
-              </div>
-              <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
-                <span style={{ fontSize:11, fontWeight:600, padding:"3px 10px", borderRadius:20, background:u.ativo?"rgba(16,185,129,.15)":"rgba(239,68,68,.15)", color:u.ativo?"#10b981":"#ef4444" }}>{u.ativo?"Ativo":"Inativo"}</span>
-                <button style={btnS("secondary")} onClick={()=>abrir(u)}>✏️</button>
-                {u.id!==currentUser.id && (
-                  <>
-                    <button style={{...btnS(u.ativo?"secondary":"success"),fontSize:12,padding:"8px 10px"}} onClick={()=>toggleAtivo(u.id)}>{u.ativo?"🚫":"✅"}</button>
-                    <button style={{...btnS("danger"),fontSize:12,padding:"8px 10px"}} onClick={()=>excluir(u.id)}>🗑️</button>
-                  </>
-                )}
-              </div>
+              ))}
             </div>
           </div>
-        ))}
+        )}
       </div>
 
       {modal && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.8)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:100 }} onClick={()=>setModal(false)}>
-          <div style={{ background:"#0d1117", border:"1px solid #1e293b", borderRadius:"20px 20px 0 0", width:"100%", maxWidth:500, padding:"24px 24px 40px", animation:"slideUp .25s ease" }} onClick={e=>e.stopPropagation()}>
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.8)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:60, padding:20 }} onClick={()=>setModal(false)}>
+          <div style={{ background:"#0d1117", border:"1px solid #1e293b", borderRadius:18, padding:24, width:"100%", maxWidth:420, boxShadow:"0 32px 64px rgba(0,0,0,.7)" }} onClick={e=>e.stopPropagation()}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-              <h3 style={{ fontSize:18, fontWeight:700, color:"#f1f5f9" }}>{editUser?"Editar Usuário":"Novo Usuário"}</h3>
-              <button style={{ background:"#1e293b", border:"none", color:"#94a3b8", width:32, height:32, borderRadius:"50%", cursor:"pointer" }} onClick={()=>setModal(false)}>✕</button>
+              <h3 style={{ fontSize:17, fontWeight:700, color:"#f1f5f9" }}>{editUser?"✏️ Editar":"➕ Novo Usuário"}</h3>
+              <button style={{ background:"#1e293b", border:"none", color:"#94a3b8", width:30, height:30, borderRadius:"50%", cursor:"pointer" }} onClick={()=>setModal(false)}>✕</button>
             </div>
             {[["nome","Nome completo","text"],["email","E-mail","email"],["senha","Senha","password"]].map(([f,label,type])=>(
-              <div key={f} style={{ marginBottom:14 }}>
-                <label style={{ fontSize:12, color:"#475569", fontWeight:600, display:"block", marginBottom:6 }}>{label}</label>
+              <div key={f} style={{ marginBottom:12 }}>
+                <label style={{ fontSize:11, color:"#475569", fontWeight:700, display:"block", marginBottom:5, textTransform:"uppercase", letterSpacing:"0.06em" }}>{label}</label>
                 <input style={inpS} type={type} value={form[f]||""} onChange={e=>setForm({...form,[f]:e.target.value})} placeholder={f==="senha"&&editUser?"Deixe em branco para manter":""} />
               </div>
             ))}
-            <div style={{ marginBottom:14 }}>
-              <label style={{ fontSize:12, color:"#475569", fontWeight:600, display:"block", marginBottom:6 }}>Perfil de acesso</label>
+            <div style={{ marginBottom:12 }}>
+              <label style={{ fontSize:11, color:"#475569", fontWeight:700, display:"block", marginBottom:5, textTransform:"uppercase", letterSpacing:"0.06em" }}>Perfil</label>
               <select style={inpS} value={form.perfil} onChange={e=>setForm({...form,perfil:e.target.value})}>
                 <option value="vendedor">Vendedor</option>
                 <option value="gestor">Gestor</option>
@@ -245,21 +279,22 @@ const GestaoUsuarios = ({ currentUser }) => {
                 <option value="admin">Admin</option>
               </select>
             </div>
-            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:20, padding:"12px 14px", background:"#111827", borderRadius:10 }}>
-              <input type="checkbox" checked={form.ativo} onChange={e=>setForm({...form,ativo:e.target.checked})} style={{ width:16, height:16, cursor:"pointer" }} id="ativo-check" />
-              <label htmlFor="ativo-check" style={{ fontSize:13, color:"#94a3b8", cursor:"pointer" }}>Usuário ativo (pode fazer login)</label>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16, padding:"11px 13px", background:"#111827", borderRadius:9 }}>
+              <input type="checkbox" checked={form.ativo} onChange={e=>setForm({...form,ativo:e.target.checked})} style={{ width:16,height:16,cursor:"pointer" }} id="ativo-ck" />
+              <label htmlFor="ativo-ck" style={{ fontSize:13, color:"#94a3b8", cursor:"pointer" }}>Usuário ativo</label>
             </div>
-            {erro && <div style={{ background:"rgba(239,68,68,.1)", border:"1px solid rgba(239,68,68,.3)", borderRadius:8, padding:"10px 14px", marginBottom:14, fontSize:13, color:"#fca5a5" }}>⚠️ {erro}</div>}
+            {erro&&<div style={{ background:"rgba(239,68,68,.1)", border:"1px solid rgba(239,68,68,.25)", borderRadius:8, padding:"9px 12px", marginBottom:14, fontSize:12, color:"#fca5a5" }}>⚠️ {erro}</div>}
             <div style={{ display:"flex", gap:10 }}>
-              <button style={{...btnS("secondary"),flex:1}} onClick={()=>setModal(false)}>Cancelar</button>
-              <button style={{...btnS(),flex:1}} onClick={salvar}>Salvar</button>
+              <button style={{...btnS("secondary"),flex:1,padding:11}} onClick={()=>setModal(false)}>Cancelar</button>
+              <button style={{...btnS(),flex:1,padding:11}} onClick={salvar}>Salvar</button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
+
 
 // ── RESPONSIVE HOOK ────────────────────────────────────────────────────────
 const useIsMobile = () => {
