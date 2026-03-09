@@ -1,5 +1,266 @@
 import { useState, useEffect, useRef } from "react";
 
+// ── AUTH USERS DB (simulado — substituir por Supabase em produção) ─────────
+const USERS_DB_KEY = "vendaflow_users";
+const SESSION_KEY  = "vendaflow_session";
+
+const defaultUsers = [
+  { id:1, nome:"Fernando", email:"fernando@vendaflow.com", senha:"admin123", perfil:"admin",    ativo:true,  avatar:"F", cor:"linear-gradient(135deg,#f59e0b,#ef4444)" },
+  { id:2, nome:"Carlos",   email:"carlos@vendaflow.com",   senha:"carlos123", perfil:"vendedor", ativo:true,  avatar:"C", cor:"linear-gradient(135deg,#3b82f6,#8b5cf6)" },
+  { id:3, nome:"Ana",      email:"ana@vendaflow.com",      senha:"ana123",    perfil:"vendedor", ativo:true,  avatar:"A", cor:"linear-gradient(135deg,#10b981,#06b6d4)" },
+];
+
+const getUsers  = () => { try { return JSON.parse(localStorage.getItem(USERS_DB_KEY)) || defaultUsers; } catch { return defaultUsers; } };
+const saveUsers = (u) => localStorage.setItem(USERS_DB_KEY, JSON.stringify(u));
+const getSession= () => { try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch { return null; } };
+const saveSession=(u) => localStorage.setItem(SESSION_KEY, JSON.stringify(u));
+const clearSession=()=> localStorage.removeItem(SESSION_KEY);
+
+// Inicializa users no localStorage se não existir
+if (!localStorage.getItem(USERS_DB_KEY)) saveUsers(defaultUsers);
+
+// ── TELA DE LOGIN ──────────────────────────────────────────────────────────
+const LoginScreen = ({ onLogin }) => {
+  const [email, setEmail]     = useState("");
+  const [senha, setSenha]     = useState("");
+  const [showSenha, setShow]  = useState(false);
+  const [erro, setErro]       = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = () => {
+    if (!email || !senha) { setErro("Preencha e-mail e senha."); return; }
+    setLoading(true); setErro("");
+    setTimeout(() => {
+      const users = getUsers();
+      const user  = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.senha === senha);
+      if (!user)        { setErro("E-mail ou senha incorretos."); setLoading(false); return; }
+      if (!user.ativo)  { setErro("Usuário inativo. Contate o administrador."); setLoading(false); return; }
+      saveSession(user);
+      onLogin(user);
+    }, 800);
+  };
+
+  const lFS = `
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap');
+    * { box-sizing:border-box; margin:0; padding:0; }
+    html,body,#root { height:100%; }
+    body { font-family:'Outfit',sans-serif; background:#080c14; color:#e2e8f0; -webkit-font-smoothing:antialiased; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes float  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+    .login-card { animation: fadeIn .5s ease forwards; }
+    input { font-size:16px !important; }
+    @media(min-width:768px){ input{font-size:14px !important;} }
+  `;
+
+  return (
+    <>
+      <style>{lFS}</style>
+      {/* Background grid */}
+      <div style={{ position:"fixed", inset:0, background:"#080c14", overflow:"hidden" }}>
+        <div style={{ position:"absolute", inset:0, backgroundImage:"linear-gradient(rgba(59,130,246,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,.04) 1px,transparent 1px)", backgroundSize:"40px 40px" }} />
+        <div style={{ position:"absolute", top:"20%", left:"50%", transform:"translateX(-50%)", width:500, height:500, background:"radial-gradient(circle, rgba(59,130,246,.08) 0%, transparent 70%)", pointerEvents:"none" }} />
+      </div>
+
+      <div style={{ position:"relative", minHeight:"100%", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+        <div className="login-card" style={{ width:"100%", maxWidth:420 }}>
+
+          {/* Logo */}
+          <div style={{ textAlign:"center", marginBottom:36 }}>
+            <div style={{ width:56, height:56, borderRadius:16, background:"linear-gradient(135deg,#3b82f6,#8b5cf6)", display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:26, marginBottom:14, animation:"float 3s ease-in-out infinite", boxShadow:"0 0 40px rgba(59,130,246,.3)" }}>⚡</div>
+            <div style={{ fontSize:28, fontWeight:800, color:"#fff", letterSpacing:"-0.03em" }}>VendaFlow</div>
+            <div style={{ fontSize:13, color:"#475569", marginTop:4, fontWeight:500 }}>CRM Inteligente</div>
+          </div>
+
+          {/* Card */}
+          <div style={{ background:"#0d1117", border:"1px solid #1e293b", borderRadius:20, padding:"32px 28px", boxShadow:"0 24px 60px rgba(0,0,0,.5)" }}>
+            <h2 style={{ fontSize:20, fontWeight:700, color:"#f1f5f9", marginBottom:6 }}>Bem-vindo de volta 👋</h2>
+            <p style={{ fontSize:13, color:"#475569", marginBottom:28 }}>Entre com suas credenciais para acessar</p>
+
+            {/* E-mail */}
+            <div style={{ marginBottom:14 }}>
+              <label style={{ fontSize:12, color:"#64748b", fontWeight:600, display:"block", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.05em" }}>E-mail</label>
+              <input
+                type="email" value={email} onChange={e=>{setEmail(e.target.value);setErro("");}}
+                onKeyDown={e=>e.key==="Enter"&&handleLogin()}
+                placeholder="seu@email.com"
+                style={{ width:"100%", background:"#111827", border:`1px solid ${erro?"#ef4444":"#1e293b"}`, borderRadius:10, padding:"12px 14px", color:"#e2e8f0", fontFamily:"'Outfit',sans-serif", outline:"none" }}
+              />
+            </div>
+
+            {/* Senha */}
+            <div style={{ marginBottom:8 }}>
+              <label style={{ fontSize:12, color:"#64748b", fontWeight:600, display:"block", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.05em" }}>Senha</label>
+              <div style={{ position:"relative" }}>
+                <input
+                  type={showSenha?"text":"password"} value={senha} onChange={e=>{setSenha(e.target.value);setErro("");}}
+                  onKeyDown={e=>e.key==="Enter"&&handleLogin()}
+                  placeholder="••••••••"
+                  style={{ width:"100%", background:"#111827", border:`1px solid ${erro?"#ef4444":"#1e293b"}`, borderRadius:10, padding:"12px 44px 12px 14px", color:"#e2e8f0", fontFamily:"'Outfit',sans-serif", outline:"none" }}
+                />
+                <button onClick={()=>setShow(!showSenha)} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#475569", cursor:"pointer", fontSize:16, padding:4 }}>
+                  {showSenha ? "🙈" : "👁️"}
+                </button>
+              </div>
+            </div>
+
+            {/* Erro */}
+            {erro && (
+              <div style={{ background:"rgba(239,68,68,.1)", border:"1px solid rgba(239,68,68,.3)", borderRadius:8, padding:"10px 14px", marginBottom:16, display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontSize:14 }}>⚠️</span>
+                <span style={{ fontSize:13, color:"#fca5a5" }}>{erro}</span>
+              </div>
+            )}
+
+            {/* Btn */}
+            <button onClick={handleLogin} disabled={loading} style={{ width:"100%", padding:"13px", borderRadius:12, border:"none", background:loading?"#1e293b":"linear-gradient(135deg,#3b82f6,#2563eb)", color:"#fff", fontFamily:"'Outfit',sans-serif", fontWeight:700, fontSize:15, cursor:loading?"not-allowed":"pointer", marginTop:erro?0:16, transition:"all .2s", boxShadow:loading?"none":"0 4px 20px rgba(59,130,246,.3)" }}>
+              {loading ? "Entrando..." : "Entrar no sistema →"}
+            </button>
+
+            {/* Hint */}
+            <div style={{ marginTop:24, padding:"14px", background:"#111827", borderRadius:10, border:"1px solid #1e293b" }}>
+              <div style={{ fontSize:11, color:"#334155", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8 }}>Contas de demonstração</div>
+              {defaultUsers.map(u=>(
+                <div key={u.id} onClick={()=>{setEmail(u.email);setSenha(u.senha);setErro("");}} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 0", cursor:"pointer", borderBottom:"1px solid rgba(30,41,59,.5)" }}>
+                  <div style={{ width:26, height:26, borderRadius:"50%", background:u.cor, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, color:"#fff", flexShrink:0 }}>{u.avatar}</div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:12, fontWeight:600, color:"#94a3b8" }}>{u.nome} <span style={{ color:"#334155" }}>·</span> <span style={{ color:u.perfil==="admin"?"#f59e0b":"#60a5fa", fontSize:11 }}>{u.perfil}</span></div>
+                    <div style={{ fontSize:11, color:"#334155" }}>{u.email}</div>
+                  </div>
+                  <span style={{ fontSize:10, color:"#334155" }}>clique →</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <p style={{ textAlign:"center", fontSize:12, color:"#1e293b", marginTop:20 }}>VendaFlow CRM © 2024</p>
+        </div>
+      </div>
+    </>
+  );
+};
+
+// ── GESTÃO DE USUÁRIOS (só Admin) ──────────────────────────────────────────
+const GestaoUsuarios = ({ currentUser }) => {
+  const [users, setUsers]   = useState(getUsers());
+  const [modal, setModal]   = useState(false);
+  const [editUser, setEdit] = useState(null);
+  const EF = { nome:"", email:"", senha:"", perfil:"vendedor", ativo:true };
+  const [form, setForm]     = useState(EF);
+  const [erro, setErro]     = useState("");
+
+  const cores = ["linear-gradient(135deg,#3b82f6,#8b5cf6)","linear-gradient(135deg,#10b981,#06b6d4)","linear-gradient(135deg,#f59e0b,#ef4444)","linear-gradient(135deg,#8b5cf6,#ec4899)"];
+
+  const abrir = (u=null) => { setEdit(u); setForm(u?{...u}:EF); setErro(""); setModal(true); };
+
+  const salvar = () => {
+    if (!form.nome||!form.email||!form.senha) { setErro("Preencha todos os campos."); return; }
+    const emailExiste = users.find(u=>u.email.toLowerCase()===form.email.toLowerCase()&&u.id!==editUser?.id);
+    if (emailExiste) { setErro("E-mail já cadastrado."); return; }
+    let updated;
+    if (editUser) {
+      updated = users.map(u=>u.id===editUser.id?{...u,...form}:u);
+    } else {
+      const novoUser = { id:Date.now(), ...form, avatar:form.nome[0].toUpperCase(), cor:cores[users.length%cores.length] };
+      updated = [...users, novoUser];
+    }
+    saveUsers(updated); setUsers(updated); setModal(false);
+  };
+
+  const toggleAtivo = (id) => {
+    if (id===currentUser.id) return; // não pode desativar a si mesmo
+    const updated = users.map(u=>u.id===id?{...u,ativo:!u.ativo}:u);
+    saveUsers(updated); setUsers(updated);
+  };
+
+  const excluir = (id) => {
+    if (id===currentUser.id) return;
+    if (!window.confirm("Excluir este usuário?")) return;
+    const updated = users.filter(u=>u.id!==id);
+    saveUsers(updated); setUsers(updated);
+  };
+
+  const cardS = { background:"#0d1117", border:"1px solid #1e293b", borderRadius:12 };
+  const inpS  = { background:"#111827", border:"1px solid #1e293b", borderRadius:10, padding:"12px 14px", color:"#e2e8f0", fontFamily:"'Outfit',sans-serif", outline:"none", width:"100%", fontSize:"14px" };
+  const btnS  = (v="primary") => ({ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6, padding:"10px 16px", borderRadius:10, border:"none", cursor:"pointer", fontFamily:"'Outfit',sans-serif", fontWeight:600, fontSize:13, background:v==="primary"?"#3b82f6":v==="danger"?"#ef4444":v==="success"?"#10b981":"#1e293b", color:"#fff" });
+
+  const PERFIL_LABELS = { admin:"Admin", vendedor:"Vendedor", financeiro:"Financeiro", gestor:"Gestor" };
+
+  return (
+    <div className="fade-in">
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+        <div>
+          <h2 style={{ fontSize:20, fontWeight:700, color:"#f1f5f9" }}>Usuários</h2>
+          <p style={{ fontSize:13, color:"#475569", marginTop:2 }}>{users.length} usuários cadastrados</p>
+        </div>
+        <button style={btnS()} onClick={()=>abrir()}>+ Novo Usuário</button>
+      </div>
+
+      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+        {users.map(u=>(
+          <div key={u.id} style={{ ...cardS, padding:16 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+              <div style={{ width:44, height:44, borderRadius:"50%", background:u.cor, display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, fontWeight:700, color:"#fff", flexShrink:0 }}>{u.avatar}</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:15, fontWeight:700, color:"#f1f5f9" }}>{u.nome}</span>
+                  <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:20, background:u.perfil==="admin"?"rgba(245,158,11,.15)":"rgba(59,130,246,.15)", color:u.perfil==="admin"?"#f59e0b":"#60a5fa" }}>{PERFIL_LABELS[u.perfil]||u.perfil}</span>
+                  {u.id===currentUser.id && <span style={{ fontSize:10, color:"#475569" }}>(você)</span>}
+                </div>
+                <div style={{ fontSize:12, color:"#475569", marginTop:3 }}>{u.email}</div>
+              </div>
+              <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
+                <span style={{ fontSize:11, fontWeight:600, padding:"3px 10px", borderRadius:20, background:u.ativo?"rgba(16,185,129,.15)":"rgba(239,68,68,.15)", color:u.ativo?"#10b981":"#ef4444" }}>{u.ativo?"Ativo":"Inativo"}</span>
+                <button style={btnS("secondary")} onClick={()=>abrir(u)}>✏️</button>
+                {u.id!==currentUser.id && (
+                  <>
+                    <button style={{...btnS(u.ativo?"secondary":"success"),fontSize:12,padding:"8px 10px"}} onClick={()=>toggleAtivo(u.id)}>{u.ativo?"🚫":"✅"}</button>
+                    <button style={{...btnS("danger"),fontSize:12,padding:"8px 10px"}} onClick={()=>excluir(u.id)}>🗑️</button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {modal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.8)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:100 }} onClick={()=>setModal(false)}>
+          <div style={{ background:"#0d1117", border:"1px solid #1e293b", borderRadius:"20px 20px 0 0", width:"100%", maxWidth:500, padding:"24px 24px 40px", animation:"slideUp .25s ease" }} onClick={e=>e.stopPropagation()}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+              <h3 style={{ fontSize:18, fontWeight:700, color:"#f1f5f9" }}>{editUser?"Editar Usuário":"Novo Usuário"}</h3>
+              <button style={{ background:"#1e293b", border:"none", color:"#94a3b8", width:32, height:32, borderRadius:"50%", cursor:"pointer" }} onClick={()=>setModal(false)}>✕</button>
+            </div>
+            {[["nome","Nome completo","text"],["email","E-mail","email"],["senha","Senha","password"]].map(([f,label,type])=>(
+              <div key={f} style={{ marginBottom:14 }}>
+                <label style={{ fontSize:12, color:"#475569", fontWeight:600, display:"block", marginBottom:6 }}>{label}</label>
+                <input style={inpS} type={type} value={form[f]||""} onChange={e=>setForm({...form,[f]:e.target.value})} placeholder={f==="senha"&&editUser?"Deixe em branco para manter":""} />
+              </div>
+            ))}
+            <div style={{ marginBottom:14 }}>
+              <label style={{ fontSize:12, color:"#475569", fontWeight:600, display:"block", marginBottom:6 }}>Perfil de acesso</label>
+              <select style={inpS} value={form.perfil} onChange={e=>setForm({...form,perfil:e.target.value})}>
+                <option value="vendedor">Vendedor</option>
+                <option value="gestor">Gestor</option>
+                <option value="financeiro">Financeiro</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:20, padding:"12px 14px", background:"#111827", borderRadius:10 }}>
+              <input type="checkbox" checked={form.ativo} onChange={e=>setForm({...form,ativo:e.target.checked})} style={{ width:16, height:16, cursor:"pointer" }} id="ativo-check" />
+              <label htmlFor="ativo-check" style={{ fontSize:13, color:"#94a3b8", cursor:"pointer" }}>Usuário ativo (pode fazer login)</label>
+            </div>
+            {erro && <div style={{ background:"rgba(239,68,68,.1)", border:"1px solid rgba(239,68,68,.3)", borderRadius:8, padding:"10px 14px", marginBottom:14, fontSize:13, color:"#fca5a5" }}>⚠️ {erro}</div>}
+            <div style={{ display:"flex", gap:10 }}>
+              <button style={{...btnS("secondary"),flex:1}} onClick={()=>setModal(false)}>Cancelar</button>
+              <button style={{...btnS(),flex:1}} onClick={salvar}>Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── RESPONSIVE HOOK ────────────────────────────────────────────────────────
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -604,19 +865,31 @@ const AgenteIA = () => {
 };
 
 // ── APP SHELL ──────────────────────────────────────────────────────────────
-const PAGE_TITLES = { dashboard:"Início", clientes:"Clientes", leads:"Leads", pipeline:"Pipeline", agenda:"Agenda", financeiro:"Financeiro", ia:"Agente IA" };
+const PAGE_TITLES = { dashboard:"Início", clientes:"Clientes", leads:"Leads", pipeline:"Pipeline", agenda:"Agenda", financeiro:"Financeiro", ia:"Agente IA", usuarios:"Usuários" };
 
 export default function App() {
-  const [page, setPage] = useState("dashboard");
-  const isMobile = useIsMobile();
-  const [clientes, setClientes] = useState(MOCK_CLIENTES);
-  const [leads, setLeads] = useState(MOCK_LEADS);
+  const [page, setPage]             = useState("dashboard");
+  const isMobile                    = useIsMobile();
+  const [clientes, setClientes]     = useState(MOCK_CLIENTES);
+  const [leads, setLeads]           = useState(MOCK_LEADS);
   const [atividades, setAtividades] = useState(MOCK_ATIVIDADES);
   const [financeiro, setFinanceiro] = useState(MOCK_FINANCEIRO);
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [moreOpen, setMoreOpen]     = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  // ── AUTH ──
+  const [currentUser, setCurrentUser] = useState(() => getSession());
+  const handleLogin  = (user) => { setCurrentUser(user); setPage("dashboard"); };
+  const handleLogout = () => { clearSession(); setCurrentUser(null); setPage("dashboard"); setUserMenuOpen(false); };
+
+  if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
 
   const novosLeads = leads.filter(l=>l.status==="novo").length;
-  const navigate = (id) => { setPage(id); setMoreOpen(false); };
+  const isAdmin    = currentUser.perfil === "admin";
+
+  const NAV_ITEMS = [...NAV, ...(isAdmin ? [{ id:"usuarios", icon:"🔐", label:"Usuários" }] : [])];
+
+  const navigate = (id) => { setPage(id); setMoreOpen(false); setUserMenuOpen(false); };
 
   const renderPage = () => {
     switch(page) {
@@ -627,9 +900,46 @@ export default function App() {
       case "agenda":     return <Agenda atividades={atividades} setAtividades={setAtividades} />;
       case "financeiro": return <Financeiro financeiro={financeiro} setFinanceiro={setFinanceiro} />;
       case "ia":         return <AgenteIA />;
+      case "usuarios":   return isAdmin ? <GestaoUsuarios currentUser={currentUser} /> : null;
       default: return null;
     }
   };
+
+  // User menu dropdown (desktop)
+  const UserMenu = () => (
+    <div style={{ position:"relative" }}>
+      <div onClick={()=>setUserMenuOpen(!userMenuOpen)} style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", padding:"6px 10px", borderRadius:10, background:userMenuOpen?"rgba(30,41,59,.8)":"transparent", transition:"background .15s" }}>
+        <div style={{ width:32, height:32, borderRadius:"50%", background:currentUser.cor||"linear-gradient(135deg,#f59e0b,#ef4444)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:700, color:"#fff" }}>{currentUser.avatar}</div>
+        <div style={{ display:"none" }} className="desktop-only">
+          <div style={{ fontSize:13, fontWeight:600, color:"#f1f5f9", lineHeight:1.2 }}>{currentUser.nome}</div>
+          <div style={{ fontSize:11, color:"#475569" }}>{currentUser.perfil}</div>
+        </div>
+        <span style={{ fontSize:10, color:"#475569" }}>▼</span>
+      </div>
+      {userMenuOpen && (
+        <>
+          <div style={{ position:"fixed", inset:0, zIndex:39 }} onClick={()=>setUserMenuOpen(false)} />
+          <div style={{ position:"absolute", right:0, top:"calc(100% + 8px)", background:"#0d1117", border:"1px solid #1e293b", borderRadius:12, padding:8, minWidth:200, zIndex:40, boxShadow:"0 16px 40px rgba(0,0,0,.5)" }}>
+            <div style={{ padding:"10px 12px", borderBottom:"1px solid #1e293b", marginBottom:6 }}>
+              <div style={{ fontSize:14, fontWeight:700, color:"#f1f5f9" }}>{currentUser.nome}</div>
+              <div style={{ fontSize:12, color:"#475569" }}>{currentUser.email}</div>
+              <span style={{ fontSize:11, fontWeight:600, padding:"2px 8px", borderRadius:20, background:isAdmin?"rgba(245,158,11,.15)":"rgba(59,130,246,.15)", color:isAdmin?"#f59e0b":"#60a5fa", marginTop:6, display:"inline-block" }}>{currentUser.perfil}</span>
+            </div>
+            {isAdmin && (
+              <button onClick={()=>navigate("usuarios")} style={{ width:"100%", padding:"10px 12px", background:"transparent", border:"none", color:"#94a3b8", cursor:"pointer", display:"flex", alignItems:"center", gap:10, borderRadius:8, fontSize:13, fontFamily:"'Outfit',sans-serif", marginBottom:2 }}
+                onMouseEnter={e=>e.currentTarget.style.background="#111827"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                🔐 Gerenciar Usuários
+              </button>
+            )}
+            <button onClick={handleLogout} style={{ width:"100%", padding:"10px 12px", background:"transparent", border:"none", color:"#ef4444", cursor:"pointer", display:"flex", alignItems:"center", gap:10, borderRadius:8, fontSize:13, fontFamily:"'Outfit',sans-serif" }}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(239,68,68,.08)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              🚪 Sair do sistema
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
 
   // ── MOBILE ──
   if(isMobile) return (
@@ -643,10 +953,26 @@ export default function App() {
             <span style={{ fontWeight:800, fontSize:17, color:"#fff", letterSpacing:"-0.02em" }}>VendaFlow</span>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            {novosLeads>0&&<span style={{ background:"#ef4444", color:"#fff", fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:10 }}>{novosLeads} novos</span>}
-            <div style={{ width:30, height:30, borderRadius:"50%", background:"linear-gradient(135deg,#f59e0b,#ef4444)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, color:"#fff" }}>F</div>
+            {novosLeads>0&&<span style={{ background:"#ef4444", color:"#fff", fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:10 }}>{novosLeads}</span>}
+            {/* Avatar abre menu mobile */}
+            <div onClick={()=>setUserMenuOpen(!userMenuOpen)} style={{ width:32, height:32, borderRadius:"50%", background:currentUser.cor||"linear-gradient(135deg,#f59e0b,#ef4444)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:700, color:"#fff", cursor:"pointer" }}>{currentUser.avatar}</div>
           </div>
         </div>
+
+        {/* User menu mobile */}
+        {userMenuOpen && (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.75)", zIndex:50 }} onClick={()=>setUserMenuOpen(false)}>
+            <div style={{ position:"absolute", top:52, right:0, background:"#0d1117", border:"1px solid #1e293b", borderRadius:"0 0 0 16px", padding:16, minWidth:220 }} onClick={e=>e.stopPropagation()}>
+              <div style={{ marginBottom:14, paddingBottom:14, borderBottom:"1px solid #1e293b" }}>
+                <div style={{ fontSize:15, fontWeight:700, color:"#f1f5f9" }}>{currentUser.nome}</div>
+                <div style={{ fontSize:12, color:"#475569" }}>{currentUser.email}</div>
+                <span style={{ fontSize:11, fontWeight:600, padding:"2px 8px", borderRadius:20, background:isAdmin?"rgba(245,158,11,.15)":"rgba(59,130,246,.15)", color:isAdmin?"#f59e0b":"#60a5fa", marginTop:6, display:"inline-block" }}>{currentUser.perfil}</span>
+              </div>
+              {isAdmin && <button onClick={()=>navigate("usuarios")} style={{ width:"100%", padding:"12px", background:"#111827", border:"1px solid #1e293b", borderRadius:10, color:"#94a3b8", cursor:"pointer", display:"flex", alignItems:"center", gap:10, fontSize:14, fontFamily:"'Outfit',sans-serif", marginBottom:8 }}>🔐 Gerenciar Usuários</button>}
+              <button onClick={handleLogout} style={{ width:"100%", padding:"12px", background:"rgba(239,68,68,.1)", border:"1px solid rgba(239,68,68,.3)", borderRadius:10, color:"#ef4444", cursor:"pointer", display:"flex", alignItems:"center", gap:10, fontSize:14, fontFamily:"'Outfit',sans-serif", fontWeight:600 }}>🚪 Sair do sistema</button>
+            </div>
+          </div>
+        )}
 
         {/* Page title */}
         <div style={{ padding:"14px 16px 4px", flexShrink:0 }}>
@@ -658,17 +984,16 @@ export default function App() {
           {renderPage()}
         </div>
 
-        {/* Bottom nav */}
+        {/* Bottom nav — 5 itens principais */}
         <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"#0d1117", borderTop:"1px solid #1e293b", display:"grid", gridTemplateColumns:"repeat(6,1fr)", zIndex:20, paddingBottom:"env(safe-area-inset-bottom,0px)" }}>
-          {NAV.slice(0,5).map(item=>(
+          {NAV_ITEMS.slice(0,5).map(item=>(
             <button key={item.id} onClick={()=>navigate(item.id)} style={{ padding:"10px 4px 8px", background:"transparent", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, position:"relative" }}>
               {page===item.id&&<div style={{ position:"absolute", top:0, left:"50%", transform:"translateX(-50%)", width:28, height:2, background:"#3b82f6", borderRadius:"0 0 3px 3px" }} />}
-              <span style={{ fontSize:20, filter:page===item.id?"none":"grayscale(30%)" }}>{item.icon}</span>
+              <span style={{ fontSize:20 }}>{item.icon}</span>
               <span style={{ fontSize:9, fontWeight:600, color:page===item.id?"#3b82f6":"#475569" }}>{item.label}</span>
               {item.id==="leads"&&novosLeads>0&&<div style={{ position:"absolute", top:5, right:8, width:14, height:14, background:"#ef4444", borderRadius:"50%", fontSize:8, fontWeight:700, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>{novosLeads}</div>}
             </button>
           ))}
-          {/* More */}
           <button onClick={()=>setMoreOpen(true)} style={{ padding:"10px 4px 8px", background:"transparent", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
             <span style={{ fontSize:20 }}>☰</span>
             <span style={{ fontSize:9, fontWeight:600, color:"#475569" }}>Mais</span>
@@ -680,11 +1005,12 @@ export default function App() {
           <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.75)", zIndex:30 }} onClick={()=>setMoreOpen(false)}>
             <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"#0d1117", borderRadius:"20px 20px 0 0", padding:"20px 20px 48px", animation:"slideUp .25s ease" }} onClick={e=>e.stopPropagation()}>
               <div style={{ width:36, height:4, background:"#334155", borderRadius:2, margin:"0 auto 18px" }} />
-              {NAV.slice(5).map(item=>(
+              {NAV_ITEMS.slice(5).map(item=>(
                 <button key={item.id} onClick={()=>navigate(item.id)} style={{ width:"100%", padding:"14px 16px", background:page===item.id?"rgba(59,130,246,.1)":"transparent", border:`1px solid ${page===item.id?"rgba(59,130,246,.3)":"transparent"}`, borderRadius:12, cursor:"pointer", display:"flex", alignItems:"center", gap:14, marginBottom:8 }}>
                   <span style={{ fontSize:24 }}>{item.icon}</span>
                   <span style={{ fontSize:15, fontWeight:600, color:page===item.id?"#60a5fa":"#e2e8f0" }}>{item.label}</span>
                   {item.id==="ia"&&<span style={bdg("#10b981","rgba(16,185,129,.15)")}>IA</span>}
+                  {item.id==="usuarios"&&<span style={bdg("#f59e0b","rgba(245,158,11,.15)")}>Admin</span>}
                 </button>
               ))}
             </div>
@@ -699,6 +1025,7 @@ export default function App() {
     <>
       <style>{fontStyle}</style>
       <div style={{ display:"flex", height:"100%", overflow:"hidden", background:"#080c14" }}>
+        {/* Sidebar */}
         <div style={{ width:220, background:"#0d1117", borderRight:"1px solid #1e293b", display:"flex", flexDirection:"column", flexShrink:0 }}>
           <div style={{ padding:"20px 16px 16px", borderBottom:"1px solid #1e293b" }}>
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -710,28 +1037,38 @@ export default function App() {
             </div>
           </div>
           <nav style={{ flex:1, padding:"10px 8px", overflowY:"auto" }}>
-            {NAV.map(item=>(
+            {NAV_ITEMS.map(item=>(
               <div key={item.id} onClick={()=>setPage(item.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", borderRadius:8, cursor:"pointer", marginBottom:2, background:page===item.id?"rgba(59,130,246,.15)":"transparent", color:page===item.id?"#60a5fa":"#64748b", fontWeight:page===item.id?600:400, fontSize:14, transition:"all .15s" }}>
                 <span style={{ fontSize:16, width:20, textAlign:"center" }}>{item.icon}</span>
                 {item.label}
                 {item.id==="leads"&&novosLeads>0&&<span style={{ marginLeft:"auto", fontSize:10, background:"#ef4444", color:"#fff", borderRadius:10, padding:"1px 7px", fontWeight:700 }}>{novosLeads}</span>}
                 {item.id==="ia"&&<span style={{ marginLeft:"auto", fontSize:9, background:"#10b981", color:"#fff", borderRadius:10, padding:"1px 7px", fontWeight:700 }}>IA</span>}
+                {item.id==="usuarios"&&<span style={{ marginLeft:"auto", fontSize:9, background:"#f59e0b", color:"#000", borderRadius:10, padding:"1px 7px", fontWeight:700 }}>ADM</span>}
               </div>
             ))}
           </nav>
+          {/* User info + logout */}
           <div style={{ padding:"12px 14px", borderTop:"1px solid #1e293b" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:32, height:32, borderRadius:"50%", background:"linear-gradient(135deg,#f59e0b,#ef4444)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:700, color:"#fff" }}>F</div>
-              <div><div style={{ fontSize:13, fontWeight:600, color:"#f1f5f9" }}>Fernando</div><div style={{ fontSize:11, color:"#475569" }}>Admin</div></div>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+              <div style={{ width:32, height:32, borderRadius:"50%", background:currentUser.cor||"linear-gradient(135deg,#f59e0b,#ef4444)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:700, color:"#fff", flexShrink:0 }}>{currentUser.avatar}</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:13, fontWeight:600, color:"#f1f5f9", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{currentUser.nome}</div>
+                <div style={{ fontSize:11, color:"#475569" }}>{currentUser.perfil}</div>
+              </div>
             </div>
+            <button onClick={handleLogout} style={{ width:"100%", padding:"8px 12px", background:"rgba(239,68,68,.08)", border:"1px solid rgba(239,68,68,.2)", borderRadius:8, color:"#ef4444", cursor:"pointer", fontSize:12, fontWeight:600, fontFamily:"'Outfit',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+              🚪 Sair
+            </button>
           </div>
         </div>
+
+        {/* Main */}
         <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
           <div style={{ padding:"0 24px", height:56, display:"flex", alignItems:"center", justifyContent:"space-between", borderBottom:"1px solid #1e293b", background:"#0d1117", flexShrink:0 }}>
             <h1 style={{ fontSize:17, fontWeight:700, color:"#f1f5f9" }}>{PAGE_TITLES[page]}</h1>
             <div style={{ display:"flex", alignItems:"center", gap:12 }}>
               <span style={{ fontSize:12, color:"#475569" }}><span style={{ color:"#10b981" }}>●</span> {new Date().toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"})}</span>
-              <div style={{ width:32, height:32, borderRadius:"50%", background:"linear-gradient(135deg,#f59e0b,#ef4444)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:700, color:"#fff" }}>F</div>
+              <UserMenu />
             </div>
           </div>
           <div style={{ flex:1, overflow:"auto", padding:"24px" }}>{renderPage()}</div>
