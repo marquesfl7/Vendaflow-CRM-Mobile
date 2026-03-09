@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import AgenteIAModule from "./AgenteIA.jsx";
 
 // ── AUTH USERS DB (simulado — substituir por Supabase em produção) ─────────
 const USERS_DB_KEY = "vendaflow_users";
@@ -827,77 +828,6 @@ const Financeiro = ({ financeiro, setFinanceiro }) => {
   );
 };
 
-// ── AGENTE IA ──────────────────────────────────────────────────────────────
-const AgenteIA = () => {
-  const [msgs, setMsgs] = useState(MOCK_MSGS);
-  const [input, setInput] = useState("");
-  const [ativo, setAtivo] = useState(true);
-  const [tom, setTom] = useState("amigável");
-  const bottomRef = useRef();
-
-  useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs]);
-
-  const enviar = () => {
-    if(!input.trim()) return;
-    setMsgs(p=>[...p,{id:Date.now(),de:"cliente",texto:input,hora:new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}]);
-    setInput("");
-    setTimeout(()=>setMsgs(p=>[...p,{id:Date.now()+1,de:"ia",texto:"🤖 Entendi! Vou verificar as melhores opções. Posso te ligar amanhã às 9h?",hora:new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}]),1200);
-  };
-
-  return (
-    <div className="fade-in">
-      <div style={{ ...card, padding:"12px 14px", marginBottom:12, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <div style={{ width:8, height:8, borderRadius:"50%", background:ativo?"#10b981":"#ef4444", animation:ativo?"pulse 2s infinite":"none" }} />
-          <span style={{ fontSize:13, fontWeight:600, color:ativo?"#10b981":"#ef4444" }}>{ativo?"Agente Ativo":"Pausado"}</span>
-        </div>
-        <button style={{...btn(ativo?"secondary":"primary"),fontSize:12,padding:"7px 14px"}} onClick={()=>setAtivo(!ativo)}>{ativo?"Pausar":"Ativar"}</button>
-      </div>
-      <div style={{ ...card, padding:12, marginBottom:12 }}>
-        <div style={{ fontSize:11, fontWeight:700, color:"#475569", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:10 }}>Tom</div>
-        <div style={{ display:"flex", gap:8 }}>
-          {["formal","amigável","direto"].map(t=>(
-            <button key={t} onClick={()=>setTom(t)} style={{ flex:1, padding:"8px 6px", borderRadius:8, border:`1px solid ${tom===t?"#3b82f6":"#1e293b"}`, background:tom===t?"rgba(59,130,246,.15)":"transparent", color:tom===t?"#60a5fa":"#64748b", fontSize:12, fontWeight:600, cursor:"pointer" }}>{t.charAt(0).toUpperCase()+t.slice(1)}</button>
-          ))}
-        </div>
-      </div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
-        {[["Mensagens","6","💬"],["Leads qualif.","2","🎯"],["Demos","1","📅"],["Resposta","94%","⚡"]].map(([l,v,ic])=>(
-          <div key={l} style={{ ...card, padding:10, textAlign:"center" }}>
-            <div style={{ fontSize:16, marginBottom:3 }}>{ic}</div>
-            <div style={{ fontSize:18, fontWeight:800, color:"#f1f5f9" }}>{v}</div>
-            <div style={{ fontSize:9, color:"#475569", marginTop:2 }}>{l}</div>
-          </div>
-        ))}
-      </div>
-      <div style={card}>
-        <div style={{ padding:"11px 14px", borderBottom:"1px solid #1e293b", display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:30, height:30, borderRadius:"50%", background:"linear-gradient(135deg,#10b981,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13 }}>🤖</div>
-          <div>
-            <div style={{ fontWeight:700, fontSize:13, color:"#f1f5f9" }}>VendaFlow IA</div>
-            <div style={{ fontSize:11, color:"#10b981" }}>● Online</div>
-          </div>
-        </div>
-        <div style={{ padding:12, display:"flex", flexDirection:"column", gap:10, maxHeight:280, overflowY:"auto" }}>
-          {msgs.map(m=>(
-            <div key={m.id} style={{ display:"flex", justifyContent:m.de==="ia"?"flex-start":"flex-end" }}>
-              {m.de==="ia"&&<div style={{ width:24, height:24, borderRadius:"50%", background:"linear-gradient(135deg,#10b981,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, marginRight:6, flexShrink:0, marginTop:2 }}>🤖</div>}
-              <div style={{ maxWidth:"80%", background:m.de==="ia"?"#111827":"#1e40af", borderRadius:m.de==="ia"?"4px 12px 12px 12px":"12px 4px 12px 12px", padding:"9px 12px" }}>
-                <div style={{ fontSize:13, color:"#e2e8f0", lineHeight:1.5 }}>{m.texto}</div>
-                <div style={{ fontSize:10, color:"#475569", marginTop:3 }}>{m.hora}</div>
-              </div>
-            </div>
-          ))}
-          <div ref={bottomRef} />
-        </div>
-        <div style={{ padding:"10px 12px", borderTop:"1px solid #1e293b", display:"flex", gap:8 }}>
-          <input style={{...inp,flex:1,padding:"10px 12px"}} placeholder="Simular mensagem..." value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&enviar()} />
-          <button style={{...btn(),padding:"10px 14px",flexShrink:0}} onClick={enviar}>↗</button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // ── APP SHELL ──────────────────────────────────────────────────────────────
 const PAGE_TITLES = { dashboard:"Início", clientes:"Clientes", leads:"Leads", pipeline:"Pipeline", agenda:"Agenda", financeiro:"Financeiro", ia:"Agente IA", usuarios:"Usuários" };
@@ -934,7 +864,7 @@ export default function App() {
       case "pipeline":   return <Pipeline leads={leads} setLeads={setLeads} />;
       case "agenda":     return <Agenda atividades={atividades} setAtividades={setAtividades} />;
       case "financeiro": return <Financeiro financeiro={financeiro} setFinanceiro={setFinanceiro} />;
-      case "ia":         return <AgenteIA />;
+      case "ia":         return <AgenteIAModule setLeads={setLeads} />;
       case "usuarios":   return isAdmin ? <GestaoUsuarios currentUser={currentUser} /> : null;
       default: return null;
     }
