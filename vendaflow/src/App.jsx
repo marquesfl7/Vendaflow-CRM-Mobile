@@ -1069,7 +1069,6 @@ export default function App() {
           <div style={{ flex:1, overflow:"auto", padding:"24px" }}>{renderPage()}</div>
         </div>
       </div>
-    </>
     </DemoGuard>
   );
 }
